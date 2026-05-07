@@ -33,6 +33,7 @@ function App() {
   const [selectedOrderId, setSelectedOrderId] = React.useState<number | null>(null);
   const [clientId, setClientId] = React.useState("");
   const [selectedContainers, setSelectedContainers] = React.useState<string[]>([]);
+  const [isContainerDropdownOpen, setIsContainerDropdownOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -98,6 +99,7 @@ function App() {
     const createdOrder: ReceivingOrder = await response.json();
     setClientId("");
     setSelectedContainers([]);
+    setIsContainerDropdownOpen(false);
     await loadData();
     setSelectedOrderId(createdOrder.id);
     setPage("details");
@@ -147,10 +149,13 @@ function App() {
             containers={containers}
             clientId={clientId}
             selectedContainers={selectedContainers}
+            isContainerDropdownOpen={isContainerDropdownOpen}
             onBack={() => setPage("list")}
             onSubmit={createOrder}
             onClientChange={setClientId}
             onToggleContainer={toggleContainer}
+            onToggleContainerDropdown={() => setIsContainerDropdownOpen((value) => !value)}
+            onCloseContainerDropdown={() => setIsContainerDropdownOpen(false)}
           />
         )}
 
@@ -250,20 +255,28 @@ function CreateOrderPage({
   containers,
   clientId,
   selectedContainers,
+  isContainerDropdownOpen,
   onBack,
   onSubmit,
   onClientChange,
   onToggleContainer,
+  onToggleContainerDropdown,
+  onCloseContainerDropdown,
 }: {
   clients: Client[];
   containers: Container[];
   clientId: string;
   selectedContainers: string[];
+  isContainerDropdownOpen: boolean;
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClientChange: (value: string) => void;
   onToggleContainer: (number: string) => void;
+  onToggleContainerDropdown: () => void;
+  onCloseContainerDropdown: () => void;
 }) {
+  const selectedLabel = selectedContainers.length === 0 ? "" : selectedContainers.join(", ");
+
   return (
     <>
       <div className="page-head">
@@ -293,21 +306,32 @@ function CreateOrderPage({
           </select>
         </label>
 
-        <label>
-          Контейнеры
-        </label>
-        <div className="checkbox-list">
-          {containers.map((container) => (
-            <label className="checkbox-row" key={container.id}>
-              <input
-                type="checkbox"
-                checked={selectedContainers.includes(container.number)}
-                onChange={() => onToggleContainer(container.number)}
-              />
-              {container.number}
-            </label>
-          ))}
-          {containers.length === 0 && <p className="muted">В справочнике пока нет контейнеров</p>}
+        <div className="field-label">Контейнеры</div>
+        <div className="multi-select">
+          <button className={`multi-select-trigger ${selectedLabel ? "has-value" : ""}`} type="button" onClick={onToggleContainerDropdown}>
+            <span>{selectedLabel || " "}</span>
+            <ChevronDown size={16} />
+          </button>
+          {isContainerDropdownOpen && (
+            <div className="multi-select-menu">
+              {containers.map((container) => (
+                <label className="multi-select-option" key={container.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedContainers.includes(container.number)}
+                    onChange={() => onToggleContainer(container.number)}
+                  />
+                  {container.number}
+                </label>
+              ))}
+              {containers.length === 0 && <p className="muted dropdown-empty">В справочнике пока нет контейнеров</p>}
+              <div className="dropdown-actions">
+                <button type="button" onClick={onCloseContainerDropdown}>
+                  Готово
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <button className="design-button form-submit" type="submit">
