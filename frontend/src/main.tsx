@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ArrowLeft, ChevronDown, MoreHorizontal, User } from "lucide-react";
+import { ArrowLeft, Boxes, ChevronDown, FileText, MoreHorizontal, Repeat2, Users } from "lucide-react";
 import "./styles.css";
 
 type Page =
@@ -201,56 +201,42 @@ function App() {
     );
   }
 
-  function openReceivingDetails(order: ReceivingOrder) {
-    setSelectedReceivingOrderId(order.id);
-    setPage("receiving-details");
-  }
-
-  function openOwnerDetails(order: OwnerChangeOrder) {
-    setSelectedOwnerChangeOrderId(order.id);
-    setPage("owner-details");
-  }
-
   return (
-    <main className="app">
-      <header className="navbar">
-        <div className="breadcrumbs">
-          <span>Главная</span>
-          <span>-</span>
-          <span>{page === "current-owners" ? "Владельцы контейнеров" : page.startsWith("owner") ? "Смена владельца" : "Поставка"}</span>
-          <span>-</span>
-          <span>{pageTitle(page)}</span>
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <Boxes size={22} />
+          <span>КТК</span>
         </div>
-        <button className="avatar" type="button" aria-label="Профиль">
-          <User size={18} />
-        </button>
-      </header>
-
-      <section className="workspace">
-        <div className="section-tabs">
+        <nav className="sidebar-nav">
           <button
             className={page.startsWith("receiving") ? "active" : ""}
             type="button"
             onClick={() => setPage("receiving-list")}
           >
-            Поставки
+            <FileText size={18} />
+            Заявки на поставку
           </button>
           <button
             className={page.startsWith("owner") ? "active" : ""}
             type="button"
             onClick={() => setPage("owner-list")}
           >
-            Смена владельца
+            <Repeat2 size={18} />
+            Заявки на смену владельца КТК
           </button>
           <button
             className={page === "current-owners" ? "active" : ""}
             type="button"
             onClick={() => setPage("current-owners")}
           >
-            Владельцы контейнеров
+            <Users size={18} />
+            Владельцы КТК
           </button>
-        </div>
+        </nav>
+      </aside>
 
+      <section className="workspace">
         {error && <div className="error">{error}</div>}
 
         {page === "receiving-list" && (
@@ -258,7 +244,10 @@ function App() {
             orders={receivingOrders}
             isLoading={isLoading}
             onCreate={() => setPage("receiving-create")}
-            onOpen={openReceivingDetails}
+            onOpen={(order) => {
+              setSelectedReceivingOrderId(order.id);
+              setPage("receiving-details");
+            }}
           />
         )}
 
@@ -291,7 +280,10 @@ function App() {
             orders={ownerChangeOrders}
             isLoading={isLoading}
             onCreate={() => setPage("owner-create")}
-            onOpen={openOwnerDetails}
+            onOpen={(order) => {
+              setSelectedOwnerChangeOrderId(order.id);
+              setPage("owner-details");
+            }}
           />
         )}
 
@@ -321,9 +313,7 @@ function App() {
           />
         )}
 
-        {page === "current-owners" && (
-          <CurrentOwnersPage owners={currentOwners} isLoading={isLoading} />
-        )}
+        {page === "current-owners" && <CurrentOwnersPage owners={currentOwners} isLoading={isLoading} />}
       </section>
     </main>
   );
@@ -342,18 +332,13 @@ function ReceivingOrdersListPage({
 }) {
   return (
     <>
-      <PageHead title="Список заявок на поставку" subtitle="Заявки с контейнерами из справочника">
+      <PageHead title="Заявки на поставку">
         <button className="design-button" type="button" onClick={onCreate}>
           Создать
         </button>
       </PageHead>
 
-      <OrdersTable
-        title="Заявки"
-        countText={isLoading ? "Загрузка..." : `${orders.length} шт.`}
-        columns={["Номер заявки", "Клиент", "Контейнеры", "Дата создания"]}
-        emptyText="Заявок пока нет"
-      >
+      <OrdersTable columns={["Номер заявки", "Клиент", "Контейнеры", "Дата создания"]}>
         {orders.map((order) => (
           <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
             <td>{order.number}</td>
@@ -365,7 +350,7 @@ function ReceivingOrdersListPage({
             </td>
           </tr>
         ))}
-        {orders.length === 0 && <EmptyRow colSpan={5} text="Заявок пока нет" />}
+        {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
       </OrdersTable>
     </>
   );
@@ -384,18 +369,13 @@ function OwnerChangeOrdersListPage({
 }) {
   return (
     <>
-      <PageHead title="Заявки на смену владельца" subtitle="Смена текущего владельца контейнеров">
+      <PageHead title="Заявки на смену владельца КТК">
         <button className="design-button" type="button" onClick={onCreate}>
           Создать
         </button>
       </PageHead>
 
-      <OrdersTable
-        title="Заявки"
-        countText={isLoading ? "Загрузка..." : `${orders.length} шт.`}
-        columns={["Номер заявки", "Новый владелец", "Контейнеры", "Дата создания"]}
-        emptyText="Заявок пока нет"
-      >
+      <OrdersTable columns={["Номер заявки", "Новый владелец", "Контейнеры", "Дата создания"]}>
         {orders.map((order) => (
           <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
             <td>{order.number}</td>
@@ -407,31 +387,18 @@ function OwnerChangeOrdersListPage({
             </td>
           </tr>
         ))}
-        {orders.length === 0 && <EmptyRow colSpan={5} text="Заявок пока нет" />}
+        {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
       </OrdersTable>
     </>
   );
 }
 
-function CurrentOwnersPage({
-  owners,
-  isLoading,
-}: {
-  owners: CurrentContainerOwner[];
-  isLoading: boolean;
-}) {
+function CurrentOwnersPage({ owners, isLoading }: { owners: CurrentContainerOwner[]; isLoading: boolean }) {
   return (
     <>
-      <PageHead title="Текущие владельцы контейнеров" subtitle="Данные берутся из активной записи истории владения">
-        <span className="page-counter">{isLoading ? "Загрузка..." : `${owners.length} шт.`}</span>
-      </PageHead>
+      <PageHead title="Владельцы КТК" />
 
-      <OrdersTable
-        title="Контейнеры"
-        countText={isLoading ? "Загрузка..." : `${owners.length} шт.`}
-        columns={["Контейнер", "Клиент", "Операция"]}
-        emptyText="Активных владельцев пока нет"
-      >
+      <OrdersTable columns={["Контейнер", "Клиент", "Операция"]}>
         {owners.map((owner) => (
           <tr key={owner.container.id}>
             <td>{owner.container.number}</td>
@@ -442,7 +409,7 @@ function CurrentOwnersPage({
             </td>
           </tr>
         ))}
-        {owners.length === 0 && <EmptyRow colSpan={4} text="Активных владельцев пока нет" />}
+        {owners.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Активных владельцев пока нет"} />}
       </OrdersTable>
     </>
   );
@@ -465,7 +432,7 @@ function CreateReceivingOrderPage(props: {
 
   return (
     <>
-      <PageHead title="Создание заявки на поставку" subtitle="Номер заявки будет сформирован автоматически">
+      <PageHead title="Создание заявки на поставку">
         <BackButton onClick={props.onBack} />
       </PageHead>
 
@@ -509,7 +476,7 @@ function CreateOwnerChangeOrderPage(props: {
 
   return (
     <>
-      <PageHead title="Создание заявки на смену владельца" subtitle="История владения изменится только после проведения">
+      <PageHead title="Создание заявки на смену владельца КТК">
         <BackButton onClick={props.onBack} />
       </PageHead>
 
@@ -552,7 +519,7 @@ function ReceivingOrderDetailsPage({
 
   return (
     <>
-      <PageHead title={`Карточка заявки ${order.number}`} subtitle="Информация о заявке на поставку">
+      <PageHead title={`Заявка на поставку ${order.number}`}>
         <div className="head-actions">
           <BackButton onClick={onBack} />
           <button className="design-button" type="button" onClick={onCreate}>
@@ -590,7 +557,7 @@ function OwnerChangeOrderDetailsPage({
 
   return (
     <>
-      <PageHead title={`Смена владельца ${order.number}`} subtitle="Проведение заявки изменит активного владельца контейнеров">
+      <PageHead title={`Заявка на смену владельца КТК ${order.number}`}>
         <div className="head-actions">
           <BackButton onClick={onBack} />
           <button className="design-button" type="button" onClick={onCreate}>
@@ -614,36 +581,18 @@ function OwnerChangeOrderDetailsPage({
   );
 }
 
-function PageHead({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function PageHead({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
     <div className="page-head">
-      <div>
-        <h1>{title}</h1>
-        <p>{subtitle}</p>
-      </div>
+      <h1>{title}</h1>
       {children}
     </div>
   );
 }
 
-function OrdersTable({
-  title,
-  countText,
-  columns,
-  children,
-}: {
-  title: string;
-  countText: string;
-  columns: string[];
-  emptyText: string;
-  children: React.ReactNode;
-}) {
+function OrdersTable({ columns, children }: { columns: string[]; children: React.ReactNode }) {
   return (
     <section className="table-section">
-      <div className="table-head">
-        <h2>{title}</h2>
-        <span>{countText}</span>
-      </div>
       <div className="table-wrap">
         <table className="orders-table">
           <thead>
@@ -793,19 +742,6 @@ function NotSelected({ title, onBack }: { title: string; onBack: () => void }) {
       <h1>{title}</h1>
     </section>
   );
-}
-
-function pageTitle(page: Page) {
-  if (page === "current-owners") {
-    return "Текущие владельцы";
-  }
-  if (page.endsWith("create")) {
-    return "Создание заявки";
-  }
-  if (page.endsWith("details")) {
-    return "Карточка заявки";
-  }
-  return "Список заявок";
 }
 
 async function errorText(response: Response, fallback: string) {
