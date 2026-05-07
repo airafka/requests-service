@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: requests-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:requests_db}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER:requests_user}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:requests_password}}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: ${PORT:8080}

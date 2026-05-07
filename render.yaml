@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: requests-service
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /api/requests
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: requests-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: requests-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: requests-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: requests-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: requests-db
+          property: password
+
+databases:
+  - name: requests-db
+    plan: free
+    databaseName: requests_db
+    user: requests_user
