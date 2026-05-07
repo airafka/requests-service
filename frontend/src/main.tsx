@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
+type Status = "confirmed" | "progress" | "draft" | "review" | "done";
+
 type Row = {
   id: string;
   client: string;
@@ -27,99 +29,30 @@ type Row = {
   createdAt: string;
   route: string;
   comment: string;
-  status: "confirmed" | "progress" | "done";
+  status: Status;
 };
 
 const rows: Row[] = [
-  {
-    id: "426",
-    client: "АО «Смарт Лог»",
-    pickupTime: "17.09.2025 13:00 - 14:00",
-    site: "Складской комплекс",
-    transport: "Авто",
-    createdAt: "20.12.2024",
-    route: "12345678910",
-    comment: "—",
-    status: "confirmed",
-  },
-  {
-    id: "426",
-    client: "АО «Смарт Лог»",
-    pickupTime: "17.09.2025 13:00 - 14:00",
-    site: "Контейнерная площадка",
-    transport: "ЖД",
-    createdAt: "20.12.2024",
-    route: "12345678910",
-    comment: "—",
-    status: "progress",
-  },
-  {
-    id: "426",
-    client: "АО «Смарт Лог»",
-    pickupTime: "17.09.2025 13:00 - 14:00",
-    site: "Складской комплекс",
-    transport: "Авто",
-    createdAt: "20.12.2024",
-    route: "12345678910",
-    comment: "—",
-    status: "done",
-  },
-  {
-    id: "426",
-    client: "АО «Смарт Лог»",
-    pickupTime: "17.09.2025 13:00 - 14:00",
-    site: "Складской комплекс",
-    transport: "Авто",
-    createdAt: "20.12.2024",
-    route: "12345678910",
-    comment: "—",
-    status: "done",
-  },
-  {
-    id: "426",
-    client: "АО «Смарт Лог»",
-    pickupTime: "17.09.2025 13:00 - 14:00",
-    site: "Складской комплекс",
-    transport: "Авто",
-    createdAt: "20.12.2024",
-    route: "12345678910",
-    comment: "123456789101234567...",
-    status: "done",
-  },
-  {
-    id: "426",
-    client: "АО «Смарт Лог»",
-    pickupTime: "17.09.2025 13:00 - 14:00",
-    site: "Складской комплекс",
-    transport: "Авто",
-    createdAt: "20.12.2024",
-    route: "12345678910",
-    comment: "12345678910",
-    status: "done",
-  },
-  {
-    id: "426",
-    client: "АО «Смарт Лог»",
-    pickupTime: "17.09.2025 13:00 - 14:00",
-    site: "Складской комплекс",
-    transport: "Авто",
-    createdAt: "20.12.2024",
-    route: "12345678910",
-    comment: "12345678910",
-    status: "done",
-  },
-  {
-    id: "426",
-    client: "АО «Смарт Лог»",
-    pickupTime: "17.09.2025 13:00 - 14:00",
-    site: "Складской комплекс",
-    transport: "Авто",
-    createdAt: "20.12.2024",
-    route: "12345678910",
-    comment: "12345678910",
-    status: "done",
-  },
-];
+  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "—", "confirmed"],
+  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Контейнерная площадка", "ЖД", "20.12.2024", "12345678910", "—", "progress"],
+  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "—", "draft"],
+  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "—", "review"],
+  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "123456789101234567...", "done"],
+  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "12345678910", "done"],
+  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "12345678910", "done"],
+  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "12345678910", "done"],
+  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "12345678910", "done"],
+].map(([id, client, pickupTime, site, transport, createdAt, route, comment, status]) => ({
+  id,
+  client,
+  pickupTime,
+  site,
+  transport,
+  createdAt,
+  route,
+  comment,
+  status: status as Status,
+}));
 
 const navItems = [
   { icon: List, active: false, label: "Справочники" },
@@ -130,65 +63,65 @@ const navItems = [
   { icon: Grid2X2, active: false, label: "Сервисы" },
 ];
 
-const statusText = {
+const statusText: Record<Status, string> = {
   confirmed: "Подтверждена",
   progress: "В работе",
+  draft: "Черновик",
+  review: "На проверке",
   done: "Выполнена",
 };
 
+const columns = ["Номер заявки", "Клиент", "Дата и время вывоза", "Площадка", "Вид транспорта", "Дата создания", "Рейс", "Комментарий", "Статус"];
+
 function App() {
   return (
-    <main className="figma-page">
-      <aside className="sidebar">
-        <div className="logo-mark" aria-label="Логотип">
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-
-        <button className="side-search" type="button" aria-label="Поиск">
-          <Search size={16} />
-        </button>
-
-        <nav className="side-nav" aria-label="Основная навигация">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button className={`side-nav-item ${item.active ? "active" : ""}`} type="button" aria-label={item.label} key={item.label}>
-                <Icon size={20} strokeWidth={1.7} />
-              </button>
-            );
-          })}
-        </nav>
-
-        <button className="side-bottom" type="button" aria-label="Настройки">
-          <Settings size={20} strokeWidth={1.7} />
-        </button>
-      </aside>
-
-      <section className="content">
-        <header className="topbar">
+    <div className="screen-scale">
+      <main className="figma-frame">
+        <header className="navbar">
           <div className="breadcrumbs">
             <span>Главная</span>
-            <span>—</span>
+            <span>–</span>
             <span>Заявки</span>
-            <span>—</span>
+            <span>–</span>
             <span>Заявки на вывоз</span>
           </div>
-          <button className="profile-button" type="button" aria-label="Профиль">
+          <button className="avatar" type="button" aria-label="Профиль">
             <User size={18} />
           </button>
         </header>
 
-        <section className="page-section">
-          <div className="title-row">
+        <aside className="sidebar">
+          <div className="sidebar-top">
+            <div className="logo-mark" aria-label="Логотип">
+              {Array.from({ length: 9 }).map((_, index) => (
+                <span key={index} />
+              ))}
+            </div>
+            <button className="search-button" type="button" aria-label="Поиск">
+              <Search size={16} />
+            </button>
+            <nav className="sidebar-nav" aria-label="Основная навигация">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button className={`nav-icon ${item.active ? "active" : ""}`} type="button" aria-label={item.label} key={item.label}>
+                    <Icon size={20} strokeWidth={1.65} />
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+          <button className="settings-button" type="button" aria-label="Настройки">
+            <Settings size={20} strokeWidth={1.65} />
+          </button>
+        </aside>
+
+        <section className="work-area">
+          <div className="page-head">
             <h1>Заявки на вывоз</h1>
-            <div className="actions">
-              <button className="icon-action" type="button" aria-label="Скачать">
-                <Download size={18} />
+            <div className="head-actions">
+              <button className="download-button" type="button" aria-label="Скачать">
+                <Download size={22} />
               </button>
               <button className="create-button" type="button">
                 <Plus size={16} />
@@ -197,55 +130,25 @@ function App() {
             </div>
           </div>
 
-          <div className="table-shell">
-            <table>
+          <div className="table-wrap">
+            <table className="requests-table">
               <thead>
                 <tr>
-                  <th>
-                    <span>Номер заявки</span>
-                    <List size={14} />
-                    <ChevronDown size={14} />
-                  </th>
-                  <th>
-                    <span>Клиент</span>
-                    <ChevronDown size={14} />
-                  </th>
-                  <th>
-                    <span>Дата и время вывоза</span>
-                    <ChevronDown size={14} />
-                  </th>
-                  <th>
-                    <span>Площадка</span>
-                    <ChevronDown size={14} />
-                  </th>
-                  <th>
-                    <span>Вид транспорта</span>
-                    <ChevronDown size={14} />
-                  </th>
-                  <th>
-                    <span>Дата создания</span>
-                    <ChevronDown size={14} />
-                  </th>
-                  <th>
-                    <span>Рейс</span>
-                    <ChevronDown size={14} />
-                  </th>
-                  <th>
-                    <span>Комментарий</span>
-                    <ChevronDown size={14} />
-                  </th>
-                  <th>
-                    <span>Статус</span>
-                    <ChevronDown size={14} />
-                  </th>
-                  <th className="controller">
+                  {columns.map((column, index) => (
+                    <th key={column}>
+                      <span>{column}</span>
+                      {index === 0 && <List size={14} />}
+                      <ChevronDown size={14} />
+                    </th>
+                  ))}
+                  <th className="control-head">
                     <SlidersHorizontal size={16} />
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row, index) => (
-                  <tr className={index === 2 ? "selected-row" : ""} key={`${row.id}-${index}`}>
+                  <tr className={index === 2 ? "row-muted" : ""} key={`${row.id}-${index}`}>
                     <td>{row.id}</td>
                     <td>
                       <a href="#client">{row.client}</a>
@@ -257,17 +160,16 @@ function App() {
                     <td>{row.route}</td>
                     <td>{row.comment}</td>
                     <td>
-                      <span className={`status-badge ${row.status}`}>{statusText[row.status]}</span>
+                      <span className={`badge ${row.status}`}>{statusText[row.status]}</span>
                     </td>
                     <td className="more-cell">
-                      <MoreHorizontal size={18} />
+                      <MoreHorizontal size={20} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-
-            <div className="context-menu" aria-label="Меню действий">
+            <div className="dropdown-menu">
               <button type="button">Открыть</button>
               <button type="button">Редактировать</button>
               <button type="button">Копировать</button>
@@ -276,26 +178,30 @@ function App() {
         </section>
 
         <footer className="pagination">
-          <div className="page-size">
-            <span>Строк на странице:</span>
-            <button type="button">
-              25
-              <ChevronDown size={14} />
-            </button>
-          </div>
-          <div className="pages">
-            <button className="active" type="button">
-              1
-            </button>
-            <button type="button">2</button>
-            <button type="button">3</button>
-            <span>...</span>
-            <button type="button">10</button>
-            <button type="button">›</button>
-          </div>
+          <span>Строк на странице:</span>
+          <button className="page-size" type="button">
+            25
+            <ChevronDown size={14} />
+          </button>
+          <button className="page-box active" type="button">
+            1
+          </button>
+          <button className="page-box" type="button">
+            2
+          </button>
+          <button className="page-box" type="button">
+            3
+          </button>
+          <span className="dots">...</span>
+          <button className="page-box" type="button">
+            10
+          </button>
+          <button className="page-box" type="button">
+            ›
+          </button>
         </footer>
-      </section>
-    </main>
+      </main>
+    </div>
   );
 }
 
