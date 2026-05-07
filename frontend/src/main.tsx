@@ -10,7 +10,8 @@ type Page =
   | "owner-list"
   | "owner-create"
   | "owner-details"
-  | "current-owners";
+  | "current-owners"
+  | "container-owner-details";
 
 type Client = {
   id: number;
@@ -50,6 +51,20 @@ type CurrentContainerOwner = {
   sourceId: number;
 };
 
+type ContainerOwnerHistory = {
+  containerId: number;
+  client: Client;
+  operationType: "RECEIVING" | "OWNER_CHANGE";
+  sourceId: number;
+  sourceOrderId: number | null;
+  sourceNumber: string | null;
+  sourceLabel: string | null;
+  validFrom: string;
+  validTo: string | null;
+  createdAt: string;
+  createdBy: string | null;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 function App() {
@@ -57,6 +72,8 @@ function App() {
   const [receivingOrders, setReceivingOrders] = React.useState<ReceivingOrder[]>([]);
   const [ownerChangeOrders, setOwnerChangeOrders] = React.useState<OwnerChangeOrder[]>([]);
   const [currentOwners, setCurrentOwners] = React.useState<CurrentContainerOwner[]>([]);
+  const [selectedOwnerContainer, setSelectedOwnerContainer] = React.useState<Container | null>(null);
+  const [selectedOwnerHistory, setSelectedOwnerHistory] = React.useState<ContainerOwnerHistory[]>([]);
   const [containers, setContainers] = React.useState<Container[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
@@ -201,6 +218,35 @@ function App() {
     );
   }
 
+  async function openContainerOwnerDetails(container: Container) {
+    setError(null);
+    setSelectedOwnerContainer(container);
+
+    const response = await fetch(`${API_BASE}/containers/${container.id}/owner-history`);
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось загрузить историю владения"));
+      return;
+    }
+
+    setSelectedOwnerHistory(await response.json());
+    setPage("container-owner-details");
+  }
+
+  function openSource(history: ContainerOwnerHistory) {
+    if (!history.sourceOrderId) {
+      return;
+    }
+
+    if (history.operationType === "RECEIVING") {
+      setSelectedReceivingOrderId(history.sourceOrderId);
+      setPage("receiving-details");
+      return;
+    }
+
+    setSelectedOwnerChangeOrderId(history.sourceOrderId);
+    setPage("owner-details");
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -226,7 +272,7 @@ function App() {
             Заявки на смену владельца КТК
           </button>
           <button
-            className={page === "current-owners" ? "active" : ""}
+            className={page === "current-owners" || page === "container-owner-details" ? "active" : ""}
             type="button"
             onClick={() => setPage("current-owners")}
           >
@@ -313,7 +359,18 @@ function App() {
           />
         )}
 
-        {page === "current-owners" && <CurrentOwnersPage owners={currentOwners} isLoading={isLoading} />}
+        {page === "current-owners" && (
+          <CurrentOwnersPage owners={currentOwners} isLoading={isLoading} onOpen={openContainerOwnerDetails} />
+        )}
+
+        {page === "container-owner-details" && (
+          <ContainerOwnerDetailsPage
+            container={selectedOwnerContainer}
+            history={selectedOwnerHistory}
+            onBack={() => setPage("current-owners")}
+            onOpenSource={openSource}
+          />
+        )}
       </section>
     </main>
   );
@@ -393,14 +450,22 @@ function OwnerChangeOrdersListPage({
   );
 }
 
-function CurrentOwnersPage({ owners, isLoading }: { owners: CurrentContainerOwner[]; isLoading: boolean }) {
+function CurrentOwnersPage({
+  owners,
+  isLoading,
+  onOpen,
+}: {
+  owners: CurrentContainerOwner[];
+  isLoading: boolean;
+  onOpen: (container: Container) => void;
+}) {
   return (
     <>
       <PageHead title="Владельцы КТК" />
 
       <OrdersTable columns={["Контейнер", "Клиент", "Операция"]}>
         {owners.map((owner) => (
-          <tr key={owner.container.id}>
+          <tr className="clickable-row" key={owner.container.id} onClick={() => onOpen(owner.container)}>
             <td>{owner.container.number}</td>
             <td>{owner.client.name}</td>
             <td>{owner.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
@@ -410,6 +475,53 @@ function CurrentOwnersPage({ owners, isLoading }: { owners: CurrentContainerOwne
           </tr>
         ))}
         {owners.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Активных владельцев пока нет"} />}
+      </OrdersTable>
+    </>
+  );
+}
+
+function ContainerOwnerDetailsPage({
+  container,
+  history,
+  onBack,
+  onOpenSource,
+}: {
+  container: Container | null;
+  history: ContainerOwnerHistory[];
+  onBack: () => void;
+  onOpenSource: (history: ContainerOwnerHistory) => void;
+}) {
+  if (!container) {
+    return <NotSelected title="Контейнер не выбран" onBack={onBack} />;
+  }
+
+  return (
+    <>
+      <PageHead title={container.number}>
+        <BackButton onClick={onBack} />
+      </PageHead>
+
+      <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дата"]}>
+        {history.map((item) => (
+          <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
+            <td>{item.client.name}</td>
+            <td>{item.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
+            <td>
+              {item.sourceOrderId ? (
+                <button className="table-link" type="button" onClick={() => onOpenSource(item)}>
+                  {item.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"} №{item.sourceNumber ?? item.sourceOrderId}
+                </button>
+              ) : (
+                "-"
+              )}
+            </td>
+            <td>{formatDate(item.validFrom)}</td>
+            <td className="more-cell">
+              <MoreHorizontal size={20} />
+            </td>
+          </tr>
+        ))}
+        {history.length === 0 && <EmptyRow colSpan={5} text="Истории владения пока нет" />}
       </OrdersTable>
     </>
   );

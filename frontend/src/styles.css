@@ -398,6 +398,16 @@ textarea {
   background: #f2f7ff;
 }
 
+.table-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #175cd3;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .control-head,
 .more-cell {
   width: 52px;

@@ -191,6 +191,7 @@ public class ContainerOwnerService {
 
     private ContainerOwnerHistoryResponse toHistoryResponse(ContainerOwnerHistory history) {
         String sourceNumber = sourceNumber(history);
+        Long sourceOrderId = sourceOrderId(history);
         String sourceLabel = switch (history.getOperationType()) {
             case RECEIVING -> sourceNumber == null ? "Receiving" : "Receiving " + sourceNumber;
             case OWNER_CHANGE -> sourceNumber == null ? "Owner change" : "Owner change " + sourceNumber;
@@ -201,6 +202,7 @@ public class ContainerOwnerService {
             ClientResponse.fromEntity(history.getClient()),
             history.getOperationType(),
             history.getSourceId(),
+            sourceOrderId,
             sourceNumber,
             sourceLabel,
             history.getValidFrom(),
@@ -220,6 +222,16 @@ public class ContainerOwnerService {
         return changeOrderRepository.findById(history.getSourceId())
             .map(ContainerOwnerChangeOrder::getNumber)
             .orElse(null);
+    }
+
+    private Long sourceOrderId(ContainerOwnerHistory history) {
+        if (history.getOperationType() == ContainerOwnerOperationType.RECEIVING) {
+            return receivingOrderContainerRepository.findWithReceivingOrderById(history.getSourceId())
+                .map(link -> link.getReceivingOrder().getId())
+                .orElse(null);
+        }
+
+        return history.getSourceId();
     }
 
     private ContainerOwnerChangeOrder loadChangeOrder(Long id) {
