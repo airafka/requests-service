@@ -59,7 +59,6 @@ function App() {
   const [ownerChangeOrders, setOwnerChangeOrders] = React.useState<OwnerChangeOrder[]>([]);
   const [currentOwners, setCurrentOwners] = React.useState<CurrentContainerOwner[]>([]);
   const [containers, setContainers] = React.useState<Container[]>([]);
-  const [receivingContainersCatalog, setReceivingContainersCatalog] = React.useState<Container[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
   const [selectedOwnerChangeOrderId, setSelectedOwnerChangeOrderId] = React.useState<number | null>(null);
@@ -81,18 +80,10 @@ function App() {
     setError(null);
 
     try {
-      const [
-        receivingResponse,
-        ownerChangeResponse,
-        currentOwnersResponse,
-        receivingContainersResponse,
-        containersResponse,
-        clientsResponse,
-      ] = await Promise.all([
+      const [receivingResponse, ownerChangeResponse, currentOwnersResponse, containersResponse, clientsResponse] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
         fetch(`${API_BASE}/container-owner-change-orders`),
         fetch(`${API_BASE}/containers/owners/current`),
-        fetch(`${API_BASE}/containers/available-for-receiving`),
         fetch(`${API_BASE}/containers`),
         fetch(`${API_BASE}/clients`),
       ]);
@@ -101,7 +92,6 @@ function App() {
         !receivingResponse.ok ||
         !ownerChangeResponse.ok ||
         !currentOwnersResponse.ok ||
-        !receivingContainersResponse.ok ||
         !containersResponse.ok ||
         !clientsResponse.ok
       ) {
@@ -111,7 +101,6 @@ function App() {
       setReceivingOrders(await receivingResponse.json());
       setOwnerChangeOrders(await ownerChangeResponse.json());
       setCurrentOwners(await currentOwnersResponse.json());
-      setReceivingContainersCatalog(await receivingContainersResponse.json());
       setContainers(await containersResponse.json());
       setClients(await clientsResponse.json());
     } catch (err) {
@@ -299,7 +288,7 @@ function App() {
         {page === "receiving-create" && (
           <CreateReceivingOrderPage
             clients={clients}
-            containers={receivingContainersCatalog}
+            containers={containers}
             clientId={receivingClientId}
             selectedContainers={receivingContainers}
             isContainerDropdownOpen={isReceivingDropdownOpen}

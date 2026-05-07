@@ -41,10 +41,8 @@ public class ContainerOwnerService {
         for (ReceivingOrderContainer link : order.getContainers()) {
             historyRepository.findByContainerIdAndValidToIsNull(link.getContainer().getId())
                 .ifPresent(active -> {
-                    throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "Контейнер " + active.getContainer().getNumber() + " уже имеет владельца: " + active.getClient().getName()
-                    );
+                    active.setValidTo(order.getCreatedAt() == null ? now : order.getCreatedAt());
+                    historyRepository.saveAndFlush(active);
                 });
 
             ContainerOwnerHistory history = new ContainerOwnerHistory();
