@@ -1,6 +1,6 @@
-# Requests Service
+# Receiving Orders Service
 
-MVP веб-сервиса для создания и обработки заявок.
+MVP веб-сервиса для создания заявок на поставку с контейнерами из справочника.
 
 ## Стек
 
@@ -57,14 +57,17 @@ Frontend будет доступен на `http://localhost:5173`.
 
 В production Render собирает единый Docker-образ из `Dockerfile.render`: React собирается в статические файлы и отдаётся из Spring Boot вместе с API. PostgreSQL создаётся отдельным managed-сервисом Render.
 
-После деплоя приложение будет доступно по URL сервиса Render, а API будет на том же домене по `/api/requests`.
+После деплоя приложение будет доступно по URL сервиса Render, а API будет на том же домене по `/api`.
+
+## Данные
+
+- `container` - справочник контейнеров
+- `receiving_order` - заявка на поставку
+- `receiving_order_container` - контейнеры в заявке
 
 ## API
 
-- `GET /api/requests` - список заявок
-- `POST /api/requests` - создать заявку
-- `GET /api/requests/{id}` - получить заявку
-- `PATCH /api/requests/{id}/status` - изменить статус
-- `DELETE /api/requests/{id}` - удалить заявку
-
-Статусы: `NEW`, `IN_PROGRESS`, `DONE`, `CANCELED`.
+- `GET /api/containers` - список контейнеров
+- `POST /api/containers` - создать контейнер в справочнике
+- `GET /api/receiving-orders` - список заявок на поставку
+- `POST /api/receiving-orders` - создать заявку на поставку

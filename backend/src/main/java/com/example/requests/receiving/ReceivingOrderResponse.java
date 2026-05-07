@@ -1,0 +1,26 @@
+package com.example.requests.receiving;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+
+public record ReceivingOrderResponse(
+    Long id,
+    String number,
+    String client,
+    OffsetDateTime createdAt,
+    List<ContainerResponse> containers
+) {
+    static ReceivingOrderResponse fromEntity(ReceivingOrder order) {
+        List<ContainerResponse> containers = order.getContainers().stream()
+            .map(link -> ContainerResponse.fromEntity(link.getContainer()))
+            .toList();
+
+        return new ReceivingOrderResponse(
+            order.getId(),
+            order.getNumber(),
+            order.getClient(),
+            order.getCreatedAt(),
+            containers
+        );
+    }
+}

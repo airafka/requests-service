@@ -5,7 +5,7 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile.render
     dockerContext: .
-    healthCheckPath: /api/requests
+    healthCheckPath: /api/receiving-orders
     envVars:
       - key: DB_HOST
         fromDatabase:

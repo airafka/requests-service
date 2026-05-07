@@ -4,55 +4,33 @@ import {
   Archive,
   BriefcaseBusiness,
   ChevronDown,
-  Download,
   FileText,
   Grid2X2,
   List,
   MoreHorizontal,
   Plus,
+  RefreshCw,
   Search,
   Settings,
-  SlidersHorizontal,
   User,
   WalletCards,
 } from "lucide-react";
 import "./styles.css";
 
-type Status = "confirmed" | "progress" | "draft" | "review" | "done";
-
-type Row = {
-  id: string;
-  client: string;
-  pickupTime: string;
-  site: string;
-  transport: string;
-  createdAt: string;
-  route: string;
-  comment: string;
-  status: Status;
+type Container = {
+  id: number;
+  number: string;
 };
 
-const rows: Row[] = [
-  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "—", "confirmed"],
-  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Контейнерная площадка", "ЖД", "20.12.2024", "12345678910", "—", "progress"],
-  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "—", "draft"],
-  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "—", "review"],
-  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "123456789101234567...", "done"],
-  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "12345678910", "done"],
-  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "12345678910", "done"],
-  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "12345678910", "done"],
-  ["426", "АО «Смарт Лог»", "17.09.2025 13:00 - 14:00", "Складской комплекс", "Авто", "20.12.2024", "12345678910", "12345678910", "done"],
-].map(([id, client, pickupTime, site, transport, createdAt, route, comment, status]) => ({
-  id,
-  client,
-  pickupTime,
-  site,
-  transport,
-  createdAt,
-  route,
-  comment,
-  status: status as Status,
-}));
+type ReceivingOrder = {
+  id: number;
+  number: string;
+  client: string;
+  createdAt: string;
+  containers: Container[];
+};
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 const navItems = [
   { icon: List, active: false, label: "Справочники" },
@@ -63,145 +41,274 @@ const navItems = [
   { icon: Grid2X2, active: false, label: "Сервисы" },
 ];
 
-const statusText: Record<Status, string> = {
-  confirmed: "Подтверждена",
-  progress: "В работе",
-  draft: "Черновик",
-  review: "На проверке",
-  done: "Выполнена",
-};
-
-const columns = ["Номер заявки", "Клиент", "Дата и время вывоза", "Площадка", "Вид транспорта", "Дата создания", "Рейс", "Комментарий", "Статус"];
-
 function App() {
+  const [orders, setOrders] = React.useState<ReceivingOrder[]>([]);
+  const [containers, setContainers] = React.useState<Container[]>([]);
+  const [orderNumber, setOrderNumber] = React.useState("");
+  const [client, setClient] = React.useState("");
+  const [selectedContainers, setSelectedContainers] = React.useState<string[]>([]);
+  const [newContainerNumber, setNewContainerNumber] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  const loadData = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const [ordersResponse, containersResponse] = await Promise.all([
+        fetch(`${API_BASE}/receiving-orders`),
+        fetch(`${API_BASE}/containers`),
+      ]);
+
+      if (!ordersResponse.ok || !containersResponse.ok) {
+        throw new Error("Не удалось загрузить данные");
+      }
+
+      setOrders(await ordersResponse.json());
+      setContainers(await containersResponse.json());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Неизвестная ошибка");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  async function createContainer(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    const number = newContainerNumber.trim().toUpperCase();
+    if (!number) {
+      setError("Укажите номер контейнера");
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/containers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ number }),
+    });
+
+    if (!response.ok) {
+      setError(response.status === 409 ? "Контейнер уже есть в справочнике" : "Не удалось создать контейнер");
+      return;
+    }
+
+    setNewContainerNumber("");
+    await loadData();
+  }
+
+  async function createOrder(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!orderNumber.trim() || !client.trim()) {
+      setError("Заполните номер заявки и клиента");
+      return;
+    }
+
+    if (selectedContainers.length === 0) {
+      setError("Выберите хотя бы один контейнер");
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/receiving-orders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        number: orderNumber.trim(),
+        client: client.trim(),
+        containerNumbers: selectedContainers,
+      }),
+    });
+
+    if (!response.ok) {
+      setError(response.status === 409 ? "Заявка с таким номером уже есть" : "Не удалось создать заявку");
+      return;
+    }
+
+    setOrderNumber("");
+    setClient("");
+    setSelectedContainers([]);
+    await loadData();
+  }
+
+  function toggleContainer(number: string) {
+    setSelectedContainers((current) =>
+      current.includes(number) ? current.filter((item) => item !== number) : [...current, number],
+    );
+  }
+
   return (
-    <div className="screen-scale">
-      <main className="figma-frame">
+    <main className="app">
+      <aside className="sidebar">
+        <div className="sidebar-top">
+          <div className="logo-mark" aria-label="Логотип">
+            {Array.from({ length: 9 }).map((_, index) => (
+              <span key={index} />
+            ))}
+          </div>
+          <button className="search-button" type="button" aria-label="Поиск">
+            <Search size={16} />
+          </button>
+          <nav className="sidebar-nav" aria-label="Основная навигация">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button className={`nav-icon ${item.active ? "active" : ""}`} type="button" aria-label={item.label} key={item.label}>
+                  <Icon size={20} strokeWidth={1.65} />
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+        <button className="settings-button" type="button" aria-label="Настройки">
+          <Settings size={20} strokeWidth={1.65} />
+        </button>
+      </aside>
+
+      <section className="content">
         <header className="navbar">
           <div className="breadcrumbs">
             <span>Главная</span>
             <span>–</span>
             <span>Заявки</span>
             <span>–</span>
-            <span>Заявки на вывоз</span>
+            <span>Заявки на поставку</span>
           </div>
           <button className="avatar" type="button" aria-label="Профиль">
             <User size={18} />
           </button>
         </header>
 
-        <aside className="sidebar">
-          <div className="sidebar-top">
-            <div className="logo-mark" aria-label="Логотип">
-              {Array.from({ length: 9 }).map((_, index) => (
-                <span key={index} />
-              ))}
-            </div>
-            <button className="search-button" type="button" aria-label="Поиск">
-              <Search size={16} />
-            </button>
-            <nav className="sidebar-nav" aria-label="Основная навигация">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button className={`nav-icon ${item.active ? "active" : ""}`} type="button" aria-label={item.label} key={item.label}>
-                    <Icon size={20} strokeWidth={1.65} />
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-          <button className="settings-button" type="button" aria-label="Настройки">
-            <Settings size={20} strokeWidth={1.65} />
-          </button>
-        </aside>
-
-        <section className="work-area">
+        <section className="workspace">
           <div className="page-head">
-            <h1>Заявки на вывоз</h1>
-            <div className="head-actions">
-              <button className="download-button" type="button" aria-label="Скачать">
-                <Download size={22} />
-              </button>
-              <button className="create-button" type="button">
-                <Plus size={16} />
-                Создать
-              </button>
+            <div>
+              <h1>Заявки на поставку</h1>
+              <p>Создание заявок с выбором контейнеров из справочника</p>
             </div>
+            <button className="refresh-button" type="button" onClick={loadData}>
+              <RefreshCw size={16} />
+              Обновить
+            </button>
           </div>
 
-          <div className="table-wrap">
-            <table className="requests-table">
-              <thead>
-                <tr>
-                  {columns.map((column, index) => (
-                    <th key={column}>
-                      <span>{column}</span>
-                      {index === 0 && <List size={14} />}
+          {error && <div className="error">{error}</div>}
+
+          <div className="layout-grid">
+            <form className="form-panel" onSubmit={createOrder}>
+              <h2>Новая заявка</h2>
+              <label>
+                Номер заявки
+                <input value={orderNumber} onChange={(event) => setOrderNumber(event.target.value)} placeholder="Например, RO-001" />
+              </label>
+              <label>
+                Клиент
+                <input value={client} onChange={(event) => setClient(event.target.value)} placeholder="Название клиента" />
+              </label>
+              <div className="field-block">
+                <span>Контейнеры</span>
+                <div className="container-options">
+                  {containers.map((container) => (
+                    <label className="checkbox-row" key={container.id}>
+                      <input
+                        type="checkbox"
+                        checked={selectedContainers.includes(container.number)}
+                        onChange={() => toggleContainer(container.number)}
+                      />
+                      {container.number}
+                    </label>
+                  ))}
+                  {containers.length === 0 && <p className="muted">Справочник контейнеров пуст</p>}
+                </div>
+              </div>
+              <button className="primary-button" type="submit">
+                <Plus size={16} />
+                Создать заявку
+              </button>
+            </form>
+
+            <section className="dictionary-panel">
+              <h2>Справочник контейнеров</h2>
+              <form className="inline-form" onSubmit={createContainer}>
+                <input
+                  value={newContainerNumber}
+                  onChange={(event) => setNewContainerNumber(event.target.value)}
+                  placeholder="Номер контейнера"
+                />
+                <button className="icon-blue" type="submit" aria-label="Добавить контейнер">
+                  <Plus size={18} />
+                </button>
+              </form>
+              <div className="container-list">
+                {containers.map((container) => (
+                  <span className="container-chip" key={container.id}>
+                    {container.number}
+                  </span>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <section className="table-section">
+            <div className="table-head">
+              <h2>Список заявок</h2>
+              <span>{isLoading ? "Загрузка..." : `${orders.length} шт.`}</span>
+            </div>
+            <div className="table-wrap">
+              <table className="orders-table">
+                <thead>
+                  <tr>
+                    <th>
+                      Номер заявки
                       <ChevronDown size={14} />
                     </th>
-                  ))}
-                  <th className="control-head">
-                    <SlidersHorizontal size={16} />
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, index) => (
-                  <tr className={index === 2 ? "row-muted" : ""} key={`${row.id}-${index}`}>
-                    <td>{row.id}</td>
-                    <td>
-                      <a href="#client">{row.client}</a>
-                    </td>
-                    <td>{row.pickupTime}</td>
-                    <td>{row.site}</td>
-                    <td>{row.transport}</td>
-                    <td>{row.createdAt}</td>
-                    <td>{row.route}</td>
-                    <td>{row.comment}</td>
-                    <td>
-                      <span className={`badge ${row.status}`}>{statusText[row.status]}</span>
-                    </td>
-                    <td className="more-cell">
-                      <MoreHorizontal size={20} />
-                    </td>
+                    <th>
+                      Клиент
+                      <ChevronDown size={14} />
+                    </th>
+                    <th>
+                      Контейнеры
+                      <ChevronDown size={14} />
+                    </th>
+                    <th>
+                      Дата создания
+                      <ChevronDown size={14} />
+                    </th>
+                    <th className="control-head" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="dropdown-menu">
-              <button type="button">Открыть</button>
-              <button type="button">Редактировать</button>
-              <button type="button">Копировать</button>
+                </thead>
+                <tbody>
+                  {orders.map((order) => (
+                    <tr key={order.id}>
+                      <td>{order.number}</td>
+                      <td>{order.client}</td>
+                      <td>{order.containers.map((container) => container.number).join(", ")}</td>
+                      <td>{new Date(order.createdAt).toLocaleString("ru-RU")}</td>
+                      <td className="more-cell">
+                        <MoreHorizontal size={20} />
+                      </td>
+                    </tr>
+                  ))}
+                  {orders.length === 0 && (
+                    <tr>
+                      <td className="empty-cell" colSpan={5}>
+                        Заявок пока нет
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
+          </section>
         </section>
-
-        <footer className="pagination">
-          <span>Строк на странице:</span>
-          <button className="page-size" type="button">
-            25
-            <ChevronDown size={14} />
-          </button>
-          <button className="page-box active" type="button">
-            1
-          </button>
-          <button className="page-box" type="button">
-            2
-          </button>
-          <button className="page-box" type="button">
-            3
-          </button>
-          <span className="dots">...</span>
-          <button className="page-box" type="button">
-            10
-          </button>
-          <button className="page-box" type="button">
-            ›
-          </button>
-        </footer>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }
 
