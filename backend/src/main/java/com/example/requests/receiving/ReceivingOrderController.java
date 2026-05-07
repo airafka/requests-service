@@ -78,7 +78,7 @@ public class ReceivingOrderController {
     }
 
     private String nextOrderNumber() {
-        return "RO-" + (System.currentTimeMillis() % 1_000_000_000L);
+        return String.valueOf(orderRepository.findMaxNumericNumber() + 1);
     }
 
     private String normalize(String value) {

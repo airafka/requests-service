@@ -102,12 +102,14 @@ public class ContainerOwnerService {
         ContainerOwnerChangeOrder order = new ContainerOwnerChangeOrder();
         order.setNumber(nextChangeOrderNumber());
         order.setNewClient(newClient);
-        order.setStatus(ContainerOwnerChangeOrderStatus.DRAFT);
+        order.setStatus(ContainerOwnerChangeOrderStatus.COMPLETED);
         order.setComment(dto.comment());
         order.setCreatedBy(currentUser());
         requestedContainerIds.forEach(containerId -> order.addContainer(containersById.get(containerId)));
 
-        return changeOrderRepository.save(order);
+        ContainerOwnerChangeOrder saved = changeOrderRepository.saveAndFlush(order);
+        applyOwnerChange(saved, OffsetDateTime.now());
+        return saved;
     }
 
     @Transactional
@@ -225,6 +227,39 @@ public class ContainerOwnerService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Owner change order was not found"));
     }
 
+    private void applyOwnerChange(ContainerOwnerChangeOrder order, OffsetDateTime completedAt) {
+        for (ContainerOwnerChangeOrderContainer link : order.getContainers()) {
+            ContainerOwnerHistory active = historyRepository
+                .findByContainerIdAndValidToIsNull(link.getContainer().getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Current owner was not found for container " + link.getContainer().getNumber()
+                ));
+
+            if (active.getClient().getId().equals(order.getNewClient().getId())) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Container " + link.getContainer().getNumber() + " already belongs to the selected client"
+                );
+            }
+
+            active.setValidTo(completedAt);
+            historyRepository.saveAndFlush(active);
+
+            ContainerOwnerHistory next = new ContainerOwnerHistory();
+            next.setContainer(link.getContainer());
+            next.setClient(order.getNewClient());
+            next.setOperationType(ContainerOwnerOperationType.OWNER_CHANGE);
+            next.setSourceId(order.getId());
+            next.setValidFrom(completedAt);
+            next.setCreatedBy(currentUser());
+            historyRepository.save(next);
+        }
+
+        order.setCompletedAt(completedAt);
+        order.setCompletedBy(currentUser());
+    }
+
     private List<Long> uniqueIds(List<Long> ids) {
         Set<Long> unique = new LinkedHashSet<>(ids);
         if (unique.size() != ids.size()) {
@@ -234,11 +269,7 @@ public class ContainerOwnerService {
     }
 
     private String nextChangeOrderNumber() {
-        String number;
-        do {
-            number = "OC-" + (System.currentTimeMillis() % 1_000_000_000L);
-        } while (changeOrderRepository.existsByNumberIgnoreCase(number));
-        return number;
+        return String.valueOf(changeOrderRepository.findMaxNumericNumber() + 1);
     }
 
     private String currentUser() {

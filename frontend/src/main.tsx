@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ArrowLeft, Check, ChevronDown, MoreHorizontal, Plus, User, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, MoreHorizontal, User } from "lucide-react";
 import "./styles.css";
 
 type Page =
@@ -34,7 +34,6 @@ type OwnerChangeOrder = {
   id: number;
   number: string;
   newClient: Client;
-  status: "DRAFT" | "COMPLETED" | "CANCELLED";
   comment: string | null;
   createdAt: string;
   createdBy: string | null;
@@ -190,28 +189,6 @@ function App() {
     setPage("owner-details");
   }
 
-  async function completeOwnerChangeOrder(id: number) {
-    await mutateOwnerChangeOrder(id, "complete", "Не удалось провести заявку");
-  }
-
-  async function cancelOwnerChangeOrder(id: number) {
-    await mutateOwnerChangeOrder(id, "cancel", "Не удалось отменить заявку");
-  }
-
-  async function mutateOwnerChangeOrder(id: number, action: "complete" | "cancel", fallback: string) {
-    setError(null);
-    const response = await fetch(`${API_BASE}/container-owner-change-orders/${id}/${action}`, { method: "POST" });
-    if (!response.ok) {
-      setError(await errorText(response, fallback));
-      return;
-    }
-
-    const updated: OwnerChangeOrder = await response.json();
-    await loadData();
-    setSelectedOwnerChangeOrderId(updated.id);
-    setPage("owner-details");
-  }
-
   function toggleReceivingContainer(number: string) {
     setReceivingContainers((current) =>
       current.includes(number) ? current.filter((item) => item !== number) : [...current, number],
@@ -341,8 +318,6 @@ function App() {
             order={selectedOwnerChangeOrder}
             onBack={() => setPage("owner-list")}
             onCreate={() => setPage("owner-create")}
-            onComplete={completeOwnerChangeOrder}
-            onCancel={cancelOwnerChangeOrder}
           />
         )}
 
@@ -369,7 +344,6 @@ function ReceivingOrdersListPage({
     <>
       <PageHead title="Список заявок на поставку" subtitle="Заявки с контейнерами из справочника">
         <button className="design-button" type="button" onClick={onCreate}>
-          <Plus size={16} />
           Создать
         </button>
       </PageHead>
@@ -385,7 +359,7 @@ function ReceivingOrdersListPage({
             <td>{order.number}</td>
             <td>{order.client.name}</td>
             <td>{order.containers.map((container) => container.number).join(", ")}</td>
-            <td>{new Date(order.createdAt).toLocaleString("ru-RU")}</td>
+            <td>{formatDate(order.createdAt)}</td>
             <td className="more-cell">
               <MoreHorizontal size={20} />
             </td>
@@ -412,7 +386,6 @@ function OwnerChangeOrdersListPage({
     <>
       <PageHead title="Заявки на смену владельца" subtitle="Смена текущего владельца контейнеров">
         <button className="design-button" type="button" onClick={onCreate}>
-          <Plus size={16} />
           Создать
         </button>
       </PageHead>
@@ -420,24 +393,21 @@ function OwnerChangeOrdersListPage({
       <OrdersTable
         title="Заявки"
         countText={isLoading ? "Загрузка..." : `${orders.length} шт.`}
-        columns={["Номер заявки", "Новый владелец", "Статус", "Контейнеры", "Дата создания"]}
+        columns={["Номер заявки", "Новый владелец", "Контейнеры", "Дата создания"]}
         emptyText="Заявок пока нет"
       >
         {orders.map((order) => (
           <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
             <td>{order.number}</td>
             <td>{order.newClient.name}</td>
-            <td>
-              <StatusBadge status={order.status} />
-            </td>
             <td>{order.containers.map((container) => container.number).join(", ")}</td>
-            <td>{new Date(order.createdAt).toLocaleString("ru-RU")}</td>
+            <td>{formatDate(order.createdAt)}</td>
             <td className="more-cell">
               <MoreHorizontal size={20} />
             </td>
           </tr>
         ))}
-        {orders.length === 0 && <EmptyRow colSpan={6} text="Заявок пока нет" />}
+        {orders.length === 0 && <EmptyRow colSpan={5} text="Заявок пока нет" />}
       </OrdersTable>
     </>
   );
@@ -459,21 +429,20 @@ function CurrentOwnersPage({
       <OrdersTable
         title="Контейнеры"
         countText={isLoading ? "Загрузка..." : `${owners.length} шт.`}
-        columns={["Контейнер", "Клиент", "Владелец с", "Операция"]}
+        columns={["Контейнер", "Клиент", "Операция"]}
         emptyText="Активных владельцев пока нет"
       >
         {owners.map((owner) => (
           <tr key={owner.container.id}>
             <td>{owner.container.number}</td>
             <td>{owner.client.name}</td>
-            <td>{new Date(owner.validFrom).toLocaleString("ru-RU")}</td>
             <td>{owner.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
             <td className="more-cell">
               <MoreHorizontal size={20} />
             </td>
           </tr>
         ))}
-        {owners.length === 0 && <EmptyRow colSpan={5} text="Активных владельцев пока нет" />}
+        {owners.length === 0 && <EmptyRow colSpan={4} text="Активных владельцев пока нет" />}
       </OrdersTable>
     </>
   );
@@ -512,7 +481,7 @@ function CreateReceivingOrderPage(props: {
           onToggleOpen={props.onToggleContainerDropdown}
           onClose={props.onCloseContainerDropdown}
         />
-        <SubmitButton label="Создать" />
+        <SubmitButton label="Сохранить" />
       </form>
     </>
   );
@@ -562,7 +531,7 @@ function CreateOwnerChangeOrderPage(props: {
           onToggleOpen={props.onToggleContainerDropdown}
           onClose={props.onCloseContainerDropdown}
         />
-        <SubmitButton label="Создать" />
+        <SubmitButton label="Сохранить" />
       </form>
     </>
   );
@@ -587,7 +556,6 @@ function ReceivingOrderDetailsPage({
         <div className="head-actions">
           <BackButton onClick={onBack} />
           <button className="design-button" type="button" onClick={onCreate}>
-            <Plus size={16} />
             Создать
           </button>
         </div>
@@ -597,7 +565,7 @@ function ReceivingOrderDetailsPage({
         <div className="detail-grid">
           <DetailItem label="Номер заявки" value={order.number} />
           <DetailItem label="Клиент" value={order.client.name} />
-          <DetailItem label="Дата создания" value={new Date(order.createdAt).toLocaleString("ru-RU")} />
+          <DetailItem label="Дата создания" value={formatDate(order.createdAt)} />
         </div>
 
         <h2>Контейнеры в заявке</h2>
@@ -611,20 +579,14 @@ function OwnerChangeOrderDetailsPage({
   order,
   onBack,
   onCreate,
-  onComplete,
-  onCancel,
 }: {
   order: OwnerChangeOrder | null;
   onBack: () => void;
   onCreate: () => void;
-  onComplete: (id: number) => void;
-  onCancel: (id: number) => void;
 }) {
   if (!order) {
     return <NotSelected title="Заявка не выбрана" onBack={onBack} />;
   }
-
-  const isDraft = order.status === "DRAFT";
 
   return (
     <>
@@ -632,7 +594,6 @@ function OwnerChangeOrderDetailsPage({
         <div className="head-actions">
           <BackButton onClick={onBack} />
           <button className="design-button" type="button" onClick={onCreate}>
-            <Plus size={16} />
             Создать
           </button>
         </div>
@@ -642,30 +603,12 @@ function OwnerChangeOrderDetailsPage({
         <div className="detail-grid">
           <DetailItem label="Номер заявки" value={order.number} />
           <DetailItem label="Новый владелец" value={order.newClient.name} />
-          <div>
-            <span>Статус</span>
-            <StatusBadge status={order.status} />
-          </div>
-          <DetailItem label="Дата создания" value={new Date(order.createdAt).toLocaleString("ru-RU")} />
-          <DetailItem label="Дата проведения" value={order.completedAt ? new Date(order.completedAt).toLocaleString("ru-RU") : "-"} />
+          <DetailItem label="Дата создания" value={formatDate(order.createdAt)} />
           <DetailItem label="Комментарий" value={order.comment || "-"} />
         </div>
 
         <h2>Контейнеры в заявке</h2>
         <ContainerChips containers={order.containers} />
-
-        {isDraft && (
-          <div className="details-actions">
-            <button className="design-button" type="button" onClick={() => onComplete(order.id)}>
-              <Check size={16} />
-              Провести
-            </button>
-            <button className="danger-button" type="button" onClick={() => onCancel(order.id)}>
-              <X size={16} />
-              Отменить
-            </button>
-          </div>
-        )}
       </section>
     </>
   );
@@ -808,7 +751,6 @@ function ContainerDropdown({
 function SubmitButton({ label }: { label: string }) {
   return (
     <button className="design-button form-submit" type="submit">
-      <Plus size={16} />
       {label}
     </button>
   );
@@ -844,16 +786,6 @@ function ContainerChips({ containers }: { containers: Container[] }) {
   );
 }
 
-function StatusBadge({ status }: { status: OwnerChangeOrder["status"] }) {
-  const labels = {
-    DRAFT: "Черновик",
-    COMPLETED: "Проведена",
-    CANCELLED: "Отменена",
-  };
-
-  return <span className={`status-badge ${status.toLowerCase()}`}>{labels[status]}</span>;
-}
-
 function NotSelected({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <section className="details-panel">
@@ -883,6 +815,10 @@ async function errorText(response: Response, fallback: string) {
   } catch {
     return fallback;
   }
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("ru-RU");
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
