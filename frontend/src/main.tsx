@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ArrowLeft, Boxes, ChevronDown, FileText, MoreHorizontal, Repeat2, Users } from "lucide-react";
+import { ArrowLeft, Boxes, ChevronDown, FileText, Repeat2, Users } from "lucide-react";
 import "./styles.css";
 
 type Page =
@@ -140,7 +140,7 @@ function App() {
     }
 
     if (receivingContainers.length === 0) {
-      setError("Выберите хотя бы один контейнер");
+      setError("Выберите хотя бы один КТК");
       return;
     }
 
@@ -177,7 +177,7 @@ function App() {
     }
 
     if (ownerContainers.length === 0) {
-      setError("Выберите хотя бы один контейнер");
+      setError("Выберите хотя бы один КТК");
       return;
     }
 
@@ -252,7 +252,7 @@ function App() {
       <aside className="sidebar">
         <div className="sidebar-brand">
           <Boxes size={22} />
-          <span>КТК</span>
+          <span>ALIS</span>
         </div>
         <nav className="sidebar-nav">
           <button
@@ -395,19 +395,16 @@ function ReceivingOrdersListPage({
         </button>
       </PageHead>
 
-      <OrdersTable columns={["Номер заявки", "Клиент", "Контейнеры", "Дата создания"]}>
+      <OrdersTable columns={["Номер заявки", "Клиент", "КТК", "Дата создания"]}>
         {orders.map((order) => (
           <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
             <td>{order.number}</td>
             <td>{order.client.name}</td>
             <td>{order.containers.map((container) => container.number).join(", ")}</td>
-            <td>{formatDate(order.createdAt)}</td>
-            <td className="more-cell">
-              <MoreHorizontal size={20} />
-            </td>
+            <td>{formatDateTime(order.createdAt)}</td>
           </tr>
         ))}
-        {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+        {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
       </OrdersTable>
     </>
   );
@@ -432,19 +429,16 @@ function OwnerChangeOrdersListPage({
         </button>
       </PageHead>
 
-      <OrdersTable columns={["Номер заявки", "Новый владелец", "Контейнеры", "Дата создания"]}>
+      <OrdersTable columns={["Номер заявки", "Новый владелец", "КТК", "Дата создания"]}>
         {orders.map((order) => (
           <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
             <td>{order.number}</td>
             <td>{order.newClient.name}</td>
             <td>{order.containers.map((container) => container.number).join(", ")}</td>
-            <td>{formatDate(order.createdAt)}</td>
-            <td className="more-cell">
-              <MoreHorizontal size={20} />
-            </td>
+            <td>{formatDateTime(order.createdAt)}</td>
           </tr>
         ))}
-        {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+        {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
       </OrdersTable>
     </>
   );
@@ -463,18 +457,15 @@ function CurrentOwnersPage({
     <>
       <PageHead title="Владельцы КТК" />
 
-      <OrdersTable columns={["Контейнер", "Клиент", "Операция"]}>
+      <OrdersTable columns={["КТК", "Клиент", "Операция"]}>
         {owners.map((owner) => (
           <tr className="clickable-row" key={owner.container.id} onClick={() => onOpen(owner.container)}>
             <td>{owner.container.number}</td>
             <td>{owner.client.name}</td>
             <td>{owner.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
-            <td className="more-cell">
-              <MoreHorizontal size={20} />
-            </td>
           </tr>
         ))}
-        {owners.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Активных владельцев пока нет"} />}
+        {owners.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Активных владельцев пока нет"} />}
       </OrdersTable>
     </>
   );
@@ -492,7 +483,7 @@ function ContainerOwnerDetailsPage({
   onOpenSource: (history: ContainerOwnerHistory) => void;
 }) {
   if (!container) {
-    return <NotSelected title="Контейнер не выбран" onBack={onBack} />;
+    return <NotSelected title="КТК не выбран" onBack={onBack} />;
   }
 
   return (
@@ -515,13 +506,10 @@ function ContainerOwnerDetailsPage({
                 "-"
               )}
             </td>
-            <td>{formatDate(item.validFrom)}</td>
-            <td className="more-cell">
-              <MoreHorizontal size={20} />
-            </td>
+            <td>{formatDateTime(item.validFrom)}</td>
           </tr>
         ))}
-        {history.length === 0 && <EmptyRow colSpan={5} text="Истории владения пока нет" />}
+        {history.length === 0 && <EmptyRow colSpan={4} text="Истории владения пока нет" />}
       </OrdersTable>
     </>
   );
@@ -644,10 +632,10 @@ function ReceivingOrderDetailsPage({
         <div className="detail-grid">
           <DetailItem label="Номер заявки" value={order.number} />
           <DetailItem label="Клиент" value={order.client.name} />
-          <DetailItem label="Дата создания" value={formatDate(order.createdAt)} />
+          <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
         </div>
 
-        <h2>Контейнеры в заявке</h2>
+        <h2>КТК в заявке</h2>
         <ContainerChips containers={order.containers} />
       </section>
     </>
@@ -682,11 +670,11 @@ function OwnerChangeOrderDetailsPage({
         <div className="detail-grid">
           <DetailItem label="Номер заявки" value={order.number} />
           <DetailItem label="Новый владелец" value={order.newClient.name} />
-          <DetailItem label="Дата создания" value={formatDate(order.createdAt)} />
+          <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
           <DetailItem label="Комментарий" value={order.comment || "-"} />
         </div>
 
-        <h2>Контейнеры в заявке</h2>
+        <h2>КТК в заявке</h2>
         <ContainerChips containers={order.containers} />
       </section>
     </>
@@ -782,7 +770,7 @@ function ContainerDropdown({
 }) {
   return (
     <>
-      <div className="field-label">Контейнеры</div>
+      <div className="field-label">КТК</div>
       <div className="multi-select">
         <button className={`multi-select-trigger ${selectedLabel ? "has-value" : ""}`} type="button" onClick={onToggleOpen}>
           <span>{selectedLabel || " "}</span>
@@ -796,7 +784,7 @@ function ContainerDropdown({
                 {container.number}
               </label>
             ))}
-            {containers.length === 0 && <p className="muted dropdown-empty">В справочнике пока нет контейнеров</p>}
+            {containers.length === 0 && <p className="muted dropdown-empty">В справочнике пока нет КТК</p>}
             <div className="dropdown-actions">
               <button type="button" onClick={onClose}>
                 Готово
@@ -865,8 +853,14 @@ async function errorText(response: Response, fallback: string) {
   }
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("ru-RU");
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);

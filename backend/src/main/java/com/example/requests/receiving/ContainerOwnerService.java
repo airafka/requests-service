@@ -184,7 +184,7 @@ public class ContainerOwnerService {
 
     @Transactional(readOnly = true)
     public List<ContainerOwnerHistoryResponse> getOwnerHistory(Long containerId) {
-        return historyRepository.findAllByContainerIdOrderByValidFromAscIdAsc(containerId).stream()
+        return historyRepository.findAllByContainerIdOrderByValidFromDescIdDesc(containerId).stream()
             .map(this::toHistoryResponse)
             .toList();
     }
