@@ -179,6 +179,34 @@ select {
   margin-top: 18px;
 }
 
+.checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.checkbox-row {
+  display: inline-flex;
+  width: auto;
+  height: 32px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #f2f4f7;
+  border-radius: 4px;
+  margin: 0;
+  padding: 0 10px;
+  background: #f9fafc;
+  color: #4b4b51;
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: #3472ed;
+}
+
 .container-list {
   display: flex;
   flex-wrap: wrap;
@@ -202,16 +230,6 @@ select {
   color: #175cd3;
   font-size: 12px;
   font-weight: 500;
-}
-
-.container-chip.removable {
-  cursor: pointer;
-}
-
-.container-chip.removable span {
-  color: #3472ed;
-  font-size: 16px;
-  line-height: 1;
 }
 
 .error {

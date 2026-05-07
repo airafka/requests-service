@@ -33,7 +33,6 @@ function App() {
   const [selectedOrderId, setSelectedOrderId] = React.useState<number | null>(null);
   const [clientId, setClientId] = React.useState("");
   const [selectedContainers, setSelectedContainers] = React.useState<string[]>([]);
-  const [containerToAdd, setContainerToAdd] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -99,23 +98,15 @@ function App() {
     const createdOrder: ReceivingOrder = await response.json();
     setClientId("");
     setSelectedContainers([]);
-    setContainerToAdd("");
     await loadData();
     setSelectedOrderId(createdOrder.id);
     setPage("details");
   }
 
-  function addContainerFromSelect(value: string) {
-    setContainerToAdd(value);
-    if (!value) {
-      return;
-    }
-    setSelectedContainers((current) => (current.includes(value) ? current : [...current, value]));
-    setContainerToAdd("");
-  }
-
-  function removeSelectedContainer(number: string) {
-    setSelectedContainers((current) => current.filter((item) => item !== number));
+  function toggleContainer(number: string) {
+    setSelectedContainers((current) =>
+      current.includes(number) ? current.filter((item) => item !== number) : [...current, number],
+    );
   }
 
   function openDetails(order: ReceivingOrder) {
@@ -155,13 +146,11 @@ function App() {
             clients={clients}
             containers={containers}
             clientId={clientId}
-            containerToAdd={containerToAdd}
             selectedContainers={selectedContainers}
             onBack={() => setPage("list")}
             onSubmit={createOrder}
             onClientChange={setClientId}
-            onContainerSelect={addContainerFromSelect}
-            onRemoveSelectedContainer={removeSelectedContainer}
+            onToggleContainer={toggleContainer}
           />
         )}
 
@@ -260,27 +249,21 @@ function CreateOrderPage({
   clients,
   containers,
   clientId,
-  containerToAdd,
   selectedContainers,
   onBack,
   onSubmit,
   onClientChange,
-  onContainerSelect,
-  onRemoveSelectedContainer,
+  onToggleContainer,
 }: {
   clients: Client[];
   containers: Container[];
   clientId: string;
-  containerToAdd: string;
   selectedContainers: string[];
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClientChange: (value: string) => void;
-  onContainerSelect: (value: string) => void;
-  onRemoveSelectedContainer: (number: string) => void;
+  onToggleContainer: (number: string) => void;
 }) {
-  const availableContainers = containers.filter((container) => !selectedContainers.includes(container.number));
-
   return (
     <>
       <div className="page-head">
@@ -312,23 +295,19 @@ function CreateOrderPage({
 
         <label>
           Контейнеры
-          <select value={containerToAdd} onChange={(event) => onContainerSelect(event.target.value)}>
-            {availableContainers.map((container) => (
-              <option value={container.number} key={container.id}>
-                {container.number}
-              </option>
-            ))}
-          </select>
         </label>
-
-        <div className="container-list selected">
-          {selectedContainers.map((number) => (
-            <button className="container-chip removable" type="button" onClick={() => onRemoveSelectedContainer(number)} key={number}>
-              {number}
-              <span>×</span>
-            </button>
+        <div className="checkbox-list">
+          {containers.map((container) => (
+            <label className="checkbox-row" key={container.id}>
+              <input
+                type="checkbox"
+                checked={selectedContainers.includes(container.number)}
+                onChange={() => onToggleContainer(container.number)}
+              />
+              {container.number}
+            </label>
           ))}
-          {selectedContainers.length === 0 && <p className="muted">Контейнеры не выбраны</p>}
+          {containers.length === 0 && <p className="muted">В справочнике пока нет контейнеров</p>}
         </div>
 
         <button className="design-button form-submit" type="submit">
