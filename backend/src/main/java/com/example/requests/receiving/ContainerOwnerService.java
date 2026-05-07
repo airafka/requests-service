@@ -176,6 +176,13 @@ public class ContainerOwnerService {
     }
 
     @Transactional(readOnly = true)
+    public List<CurrentContainerOwnerResponse> getCurrentOwners() {
+        return historyRepository.findAllByValidToIsNullOrderByContainer_NumberAsc().stream()
+            .map(CurrentContainerOwnerResponse::fromEntity)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<ContainerOwnerHistoryResponse> getOwnerHistory(Long containerId) {
         return historyRepository.findAllByContainerIdOrderByValidFromAscIdAsc(containerId).stream()
             .map(this::toHistoryResponse)

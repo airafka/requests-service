@@ -15,5 +15,8 @@ public interface ContainerOwnerHistoryRepository extends JpaRepository<Container
     List<ContainerOwnerHistory> findByContainerIdInAndValidToIsNull(Collection<Long> containerIds);
 
     @EntityGraph(attributePaths = {"container", "client"})
+    List<ContainerOwnerHistory> findAllByValidToIsNullOrderByContainer_NumberAsc();
+
+    @EntityGraph(attributePaths = {"container", "client"})
     List<ContainerOwnerHistory> findAllByContainerIdOrderByValidFromAscIdAsc(Long containerId);
 }

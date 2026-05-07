@@ -21,6 +21,11 @@ public class ContainerOwnerController {
         return service.getCurrentOwner(id);
     }
 
+    @GetMapping("/owners/current")
+    public List<CurrentContainerOwnerResponse> currentOwners() {
+        return service.getCurrentOwners();
+    }
+
     @GetMapping("/{id}/owner-history")
     public List<ContainerOwnerHistoryResponse> ownerHistory(@PathVariable Long id) {
         return service.getOwnerHistory(id);

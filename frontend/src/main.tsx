@@ -3,7 +3,14 @@ import ReactDOM from "react-dom/client";
 import { ArrowLeft, Check, ChevronDown, MoreHorizontal, Plus, User, X } from "lucide-react";
 import "./styles.css";
 
-type Page = "receiving-list" | "receiving-create" | "receiving-details" | "owner-list" | "owner-create" | "owner-details";
+type Page =
+  | "receiving-list"
+  | "receiving-create"
+  | "receiving-details"
+  | "owner-list"
+  | "owner-create"
+  | "owner-details"
+  | "current-owners";
 
 type Client = {
   id: number;
@@ -36,12 +43,21 @@ type OwnerChangeOrder = {
   containers: Container[];
 };
 
+type CurrentContainerOwner = {
+  container: Container;
+  client: Client;
+  validFrom: string;
+  operationType: "RECEIVING" | "OWNER_CHANGE";
+  sourceId: number;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 function App() {
   const [page, setPage] = React.useState<Page>("receiving-list");
   const [receivingOrders, setReceivingOrders] = React.useState<ReceivingOrder[]>([]);
   const [ownerChangeOrders, setOwnerChangeOrders] = React.useState<OwnerChangeOrder[]>([]);
+  const [currentOwners, setCurrentOwners] = React.useState<CurrentContainerOwner[]>([]);
   const [containers, setContainers] = React.useState<Container[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
@@ -64,19 +80,27 @@ function App() {
     setError(null);
 
     try {
-      const [receivingResponse, ownerChangeResponse, containersResponse, clientsResponse] = await Promise.all([
+      const [receivingResponse, ownerChangeResponse, currentOwnersResponse, containersResponse, clientsResponse] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
         fetch(`${API_BASE}/container-owner-change-orders`),
+        fetch(`${API_BASE}/containers/owners/current`),
         fetch(`${API_BASE}/containers`),
         fetch(`${API_BASE}/clients`),
       ]);
 
-      if (!receivingResponse.ok || !ownerChangeResponse.ok || !containersResponse.ok || !clientsResponse.ok) {
+      if (
+        !receivingResponse.ok ||
+        !ownerChangeResponse.ok ||
+        !currentOwnersResponse.ok ||
+        !containersResponse.ok ||
+        !clientsResponse.ok
+      ) {
         throw new Error("Не удалось загрузить данные");
       }
 
       setReceivingOrders(await receivingResponse.json());
       setOwnerChangeOrders(await ownerChangeResponse.json());
+      setCurrentOwners(await currentOwnersResponse.json());
       setContainers(await containersResponse.json());
       setClients(await clientsResponse.json());
     } catch (err) {
@@ -216,7 +240,7 @@ function App() {
         <div className="breadcrumbs">
           <span>Главная</span>
           <span>-</span>
-          <span>{page.startsWith("owner") ? "Смена владельца" : "Поставка"}</span>
+          <span>{page === "current-owners" ? "Владельцы контейнеров" : page.startsWith("owner") ? "Смена владельца" : "Поставка"}</span>
           <span>-</span>
           <span>{pageTitle(page)}</span>
         </div>
@@ -228,7 +252,7 @@ function App() {
       <section className="workspace">
         <div className="section-tabs">
           <button
-            className={!page.startsWith("owner") ? "active" : ""}
+            className={page.startsWith("receiving") ? "active" : ""}
             type="button"
             onClick={() => setPage("receiving-list")}
           >
@@ -240,6 +264,13 @@ function App() {
             onClick={() => setPage("owner-list")}
           >
             Смена владельца
+          </button>
+          <button
+            className={page === "current-owners" ? "active" : ""}
+            type="button"
+            onClick={() => setPage("current-owners")}
+          >
+            Владельцы контейнеров
           </button>
         </div>
 
@@ -313,6 +344,10 @@ function App() {
             onComplete={completeOwnerChangeOrder}
             onCancel={cancelOwnerChangeOrder}
           />
+        )}
+
+        {page === "current-owners" && (
+          <CurrentOwnersPage owners={currentOwners} isLoading={isLoading} />
         )}
       </section>
     </main>
@@ -403,6 +438,42 @@ function OwnerChangeOrdersListPage({
           </tr>
         ))}
         {orders.length === 0 && <EmptyRow colSpan={6} text="Заявок пока нет" />}
+      </OrdersTable>
+    </>
+  );
+}
+
+function CurrentOwnersPage({
+  owners,
+  isLoading,
+}: {
+  owners: CurrentContainerOwner[];
+  isLoading: boolean;
+}) {
+  return (
+    <>
+      <PageHead title="Текущие владельцы контейнеров" subtitle="Данные берутся из активной записи истории владения">
+        <span className="page-counter">{isLoading ? "Загрузка..." : `${owners.length} шт.`}</span>
+      </PageHead>
+
+      <OrdersTable
+        title="Контейнеры"
+        countText={isLoading ? "Загрузка..." : `${owners.length} шт.`}
+        columns={["Контейнер", "Клиент", "Владелец с", "Операция"]}
+        emptyText="Активных владельцев пока нет"
+      >
+        {owners.map((owner) => (
+          <tr key={owner.container.id}>
+            <td>{owner.container.number}</td>
+            <td>{owner.client.name}</td>
+            <td>{new Date(owner.validFrom).toLocaleString("ru-RU")}</td>
+            <td>{owner.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
+            <td className="more-cell">
+              <MoreHorizontal size={20} />
+            </td>
+          </tr>
+        ))}
+        {owners.length === 0 && <EmptyRow colSpan={5} text="Активных владельцев пока нет" />}
       </OrdersTable>
     </>
   );
@@ -793,6 +864,9 @@ function NotSelected({ title, onBack }: { title: string; onBack: () => void }) {
 }
 
 function pageTitle(page: Page) {
+  if (page === "current-owners") {
+    return "Текущие владельцы";
+  }
   if (page.endsWith("create")) {
     return "Создание заявки";
   }
