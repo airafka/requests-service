@@ -52,16 +52,15 @@ public class ReceivingOrderController {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown client"));
 
         List<String> requestedNumbers = dto.containerNumbers().stream()
-            .map(this::normalize)
+            .map(String::trim)
             .filter(number -> !number.isBlank())
             .collect(Collectors.collectingAndThen(Collectors.toCollection(LinkedHashSet::new), List::copyOf));
 
-        List<ContainerEntity> containers = containerRepository.findByNumberIn(requestedNumbers);
-        Map<String, ContainerEntity> containersByNumber = containers.stream()
-            .collect(Collectors.toMap(container -> container.getNumber().toUpperCase(), Function.identity()));
+        Map<String, ContainerEntity> containersByNumber = containerRepository.findAllByOrderByNumberAsc().stream()
+            .collect(Collectors.toMap(container -> normalize(container.getNumber()), Function.identity()));
 
         List<String> missing = requestedNumbers.stream()
-            .filter(number -> !containersByNumber.containsKey(number.toUpperCase()))
+            .filter(number -> !containersByNumber.containsKey(normalize(number)))
             .toList();
 
         if (!missing.isEmpty()) {
@@ -71,7 +70,7 @@ public class ReceivingOrderController {
         ReceivingOrder order = new ReceivingOrder();
         order.setNumber(nextOrderNumber());
         order.setClient(client);
-        requestedNumbers.forEach(number -> order.addContainer(containersByNumber.get(number.toUpperCase())));
+        requestedNumbers.forEach(number -> order.addContainer(containersByNumber.get(normalize(number))));
 
         ReceivingOrder saved = orderRepository.saveAndFlush(order);
         containerOwnerService.createReceivingHistory(saved);

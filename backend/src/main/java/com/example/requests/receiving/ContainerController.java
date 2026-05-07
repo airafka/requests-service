@@ -28,6 +28,13 @@ public class ContainerController {
             .toList();
     }
 
+    @GetMapping("/available-for-receiving")
+    public List<ContainerResponse> availableForReceiving() {
+        return repository.findAvailableForReceiving().stream()
+            .map(ContainerResponse::fromEntity)
+            .toList();
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ContainerResponse create(@Valid @RequestBody CreateContainerDto dto) {

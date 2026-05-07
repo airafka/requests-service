@@ -43,7 +43,7 @@ public class ContainerOwnerService {
                 .ifPresent(active -> {
                     throw new ResponseStatusException(
                         HttpStatus.CONFLICT,
-                        "Container " + active.getContainer().getNumber() + " already has an active owner"
+                        "Контейнер " + active.getContainer().getNumber() + " уже имеет владельца: " + active.getClient().getName()
                     );
                 });
 
