@@ -8,6 +8,6 @@ import java.util.List;
 public interface ReceivingOrderRepository extends JpaRepository<ReceivingOrder, Long> {
     boolean existsByNumberIgnoreCase(String number);
 
-    @EntityGraph(attributePaths = {"containers", "containers.container"})
+    @EntityGraph(attributePaths = {"client", "containers", "containers.container"})
     List<ReceivingOrder> findAllByOrderByCreatedAtDesc();
 }

@@ -1,24 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import {
-  Archive,
-  ArrowLeft,
-  BriefcaseBusiness,
-  ChevronDown,
-  FileText,
-  Grid2X2,
-  List,
-  MoreHorizontal,
-  Plus,
-  RefreshCw,
-  Search,
-  Settings,
-  User,
-  WalletCards,
-} from "lucide-react";
+import { ArrowLeft, ChevronDown, MoreHorizontal, Plus, User } from "lucide-react";
 import "./styles.css";
 
 type Page = "list" | "create" | "details";
+
+type Client = {
+  id: number;
+  name: string;
+};
 
 type Container = {
   id: number;
@@ -28,32 +18,22 @@ type Container = {
 type ReceivingOrder = {
   id: number;
   number: string;
-  client: string;
+  client: Client;
   createdAt: string;
   containers: Container[];
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
-const navItems = [
-  { icon: List, active: false, label: "Справочники" },
-  { icon: FileText, active: false, label: "Документы" },
-  { icon: Archive, active: true, label: "Заявки" },
-  { icon: WalletCards, active: false, label: "Биллинг" },
-  { icon: BriefcaseBusiness, active: false, label: "Администрирование" },
-  { icon: Grid2X2, active: false, label: "Сервисы" },
-];
-
 function App() {
   const [page, setPage] = React.useState<Page>("list");
   const [orders, setOrders] = React.useState<ReceivingOrder[]>([]);
   const [containers, setContainers] = React.useState<Container[]>([]);
+  const [clients, setClients] = React.useState<Client[]>([]);
   const [selectedOrderId, setSelectedOrderId] = React.useState<number | null>(null);
-  const [orderNumber, setOrderNumber] = React.useState("");
-  const [client, setClient] = React.useState("");
+  const [clientId, setClientId] = React.useState("");
   const [selectedContainers, setSelectedContainers] = React.useState<string[]>([]);
   const [containerToAdd, setContainerToAdd] = React.useState("");
-  const [newContainerNumber, setNewContainerNumber] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -64,17 +44,19 @@ function App() {
     setError(null);
 
     try {
-      const [ordersResponse, containersResponse] = await Promise.all([
+      const [ordersResponse, containersResponse, clientsResponse] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
         fetch(`${API_BASE}/containers`),
+        fetch(`${API_BASE}/clients`),
       ]);
 
-      if (!ordersResponse.ok || !containersResponse.ok) {
+      if (!ordersResponse.ok || !containersResponse.ok || !clientsResponse.ok) {
         throw new Error("Не удалось загрузить данные");
       }
 
       setOrders(await ordersResponse.json());
       setContainers(await containersResponse.json());
+      setClients(await clientsResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неизвестная ошибка");
     } finally {
@@ -86,37 +68,12 @@ function App() {
     loadData();
   }, [loadData]);
 
-  async function createContainer(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-
-    const number = newContainerNumber.trim().toUpperCase();
-    if (!number) {
-      setError("Укажите номер контейнера");
-      return;
-    }
-
-    const response = await fetch(`${API_BASE}/containers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ number }),
-    });
-
-    if (!response.ok) {
-      setError(response.status === 409 ? "Контейнер уже есть в справочнике" : "Не удалось создать контейнер");
-      return;
-    }
-
-    setNewContainerNumber("");
-    await loadData();
-  }
-
   async function createOrder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
-    if (!orderNumber.trim() || !client.trim()) {
-      setError("Заполните номер заявки и клиента");
+    if (!clientId) {
+      setError("Выберите клиента");
       return;
     }
 
@@ -129,20 +86,18 @@ function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        number: orderNumber.trim(),
-        client: client.trim(),
+        clientId: Number(clientId),
         containerNumbers: selectedContainers,
       }),
     });
 
     if (!response.ok) {
-      setError(response.status === 409 ? "Заявка с таким номером уже есть" : "Не удалось создать заявку");
+      setError("Не удалось создать заявку");
       return;
     }
 
     const createdOrder: ReceivingOrder = await response.json();
-    setOrderNumber("");
-    setClient("");
+    setClientId("");
     setSelectedContainers([]);
     setContainerToAdd("");
     await loadData();
@@ -150,12 +105,12 @@ function App() {
     setPage("details");
   }
 
-  function addSelectedContainer() {
-    if (!containerToAdd) {
+  function addContainerFromSelect(value: string) {
+    setContainerToAdd(value);
+    if (!value) {
       return;
     }
-
-    setSelectedContainers((current) => (current.includes(containerToAdd) ? current : [...current, containerToAdd]));
+    setSelectedContainers((current) => (current.includes(value) ? current : [...current, value]));
     setContainerToAdd("");
   }
 
@@ -168,110 +123,57 @@ function App() {
     setPage("details");
   }
 
-  function openCreate() {
-    setError(null);
-    setPage("create");
-  }
-
   return (
     <main className="app">
-      <Sidebar />
+      <header className="navbar">
+        <div className="breadcrumbs">
+          <span>Главная</span>
+          <span>–</span>
+          <span>Поставка</span>
+          <span>–</span>
+          <span>{page === "list" ? "Список заявок" : page === "create" ? "Создание заявки" : "Карточка заявки"}</span>
+        </div>
+        <button className="avatar" type="button" aria-label="Профиль">
+          <User size={18} />
+        </button>
+      </header>
 
-      <section className="content">
-        <Header page={page} />
+      <section className="workspace">
+        {error && <div className="error">{error}</div>}
 
-        <section className="workspace">
-          {error && <div className="error">{error}</div>}
+        {page === "list" && (
+          <OrdersListPage
+            orders={orders}
+            isLoading={isLoading}
+            onCreate={() => setPage("create")}
+            onOpen={openDetails}
+          />
+        )}
 
-          {page === "list" && (
-            <OrdersListPage
-              orders={orders}
-              isLoading={isLoading}
-              onCreate={openCreate}
-              onRefresh={loadData}
-              onOpen={openDetails}
-            />
-          )}
+        {page === "create" && (
+          <CreateOrderPage
+            clients={clients}
+            containers={containers}
+            clientId={clientId}
+            containerToAdd={containerToAdd}
+            selectedContainers={selectedContainers}
+            onBack={() => setPage("list")}
+            onSubmit={createOrder}
+            onClientChange={setClientId}
+            onContainerSelect={addContainerFromSelect}
+            onRemoveSelectedContainer={removeSelectedContainer}
+          />
+        )}
 
-          {page === "create" && (
-            <CreateOrderPage
-              orderNumber={orderNumber}
-              client={client}
-              containers={containers}
-              selectedContainers={selectedContainers}
-              containerToAdd={containerToAdd}
-              newContainerNumber={newContainerNumber}
-              onBack={() => setPage("list")}
-              onSubmit={createOrder}
-              onCreateContainer={createContainer}
-              onOrderNumberChange={setOrderNumber}
-              onClientChange={setClient}
-              onContainerToAddChange={setContainerToAdd}
-              onNewContainerNumberChange={setNewContainerNumber}
-              onAddSelectedContainer={addSelectedContainer}
-              onRemoveSelectedContainer={removeSelectedContainer}
-            />
-          )}
-
-          {page === "details" && (
-            <OrderDetailsPage
-              order={selectedOrder}
-              onBack={() => setPage("list")}
-              onCreate={openCreate}
-            />
-          )}
-        </section>
+        {page === "details" && (
+          <OrderDetailsPage
+            order={selectedOrder}
+            onBack={() => setPage("list")}
+            onCreate={() => setPage("create")}
+          />
+        )}
       </section>
     </main>
-  );
-}
-
-function Sidebar() {
-  return (
-    <aside className="sidebar">
-      <div className="sidebar-top">
-        <div className="logo-mark" aria-label="Логотип">
-          {Array.from({ length: 9 }).map((_, index) => (
-            <span key={index} />
-          ))}
-        </div>
-        <button className="search-button" type="button" aria-label="Поиск">
-          <Search size={16} />
-        </button>
-        <nav className="sidebar-nav" aria-label="Основная навигация">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button className={`nav-icon ${item.active ? "active" : ""}`} type="button" aria-label={item.label} key={item.label}>
-                <Icon size={20} strokeWidth={1.65} />
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-      <button className="settings-button" type="button" aria-label="Настройки">
-        <Settings size={20} strokeWidth={1.65} />
-      </button>
-    </aside>
-  );
-}
-
-function Header({ page }: { page: Page }) {
-  const current = page === "create" ? "Создание заявки" : page === "details" ? "Карточка заявки" : "Список заявок";
-
-  return (
-    <header className="navbar">
-      <div className="breadcrumbs">
-        <span>Главная</span>
-        <span>–</span>
-        <span>Заявки</span>
-        <span>–</span>
-        <span>{current}</span>
-      </div>
-      <button className="avatar" type="button" aria-label="Профиль">
-        <User size={18} />
-      </button>
-    </header>
   );
 }
 
@@ -279,13 +181,11 @@ function OrdersListPage({
   orders,
   isLoading,
   onCreate,
-  onRefresh,
   onOpen,
 }: {
   orders: ReceivingOrder[];
   isLoading: boolean;
   onCreate: () => void;
-  onRefresh: () => void;
   onOpen: (order: ReceivingOrder) => void;
 }) {
   return (
@@ -295,16 +195,10 @@ function OrdersListPage({
           <h1>Список заявок на поставку</h1>
           <p>Заявки с контейнерами из справочника</p>
         </div>
-        <div className="page-actions">
-          <button className="secondary-button" type="button" onClick={onRefresh}>
-            <RefreshCw size={16} />
-            Обновить
-          </button>
-          <button className="primary-top-button" type="button" onClick={onCreate}>
-            <Plus size={16} />
-            Создать
-          </button>
-        </div>
+        <button className="design-button" type="button" onClick={onCreate}>
+          <Plus size={16} />
+          Создать
+        </button>
       </div>
 
       <section className="table-section">
@@ -339,7 +233,7 @@ function OrdersListPage({
               {orders.map((order) => (
                 <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
                   <td>{order.number}</td>
-                  <td>{order.client}</td>
+                  <td>{order.client.name}</td>
                   <td>{order.containers.map((container) => container.number).join(", ")}</td>
                   <td>{new Date(order.createdAt).toLocaleString("ru-RU")}</td>
                   <td className="more-cell">
@@ -363,36 +257,26 @@ function OrdersListPage({
 }
 
 function CreateOrderPage({
-  orderNumber,
-  client,
+  clients,
   containers,
-  selectedContainers,
+  clientId,
   containerToAdd,
-  newContainerNumber,
+  selectedContainers,
   onBack,
   onSubmit,
-  onCreateContainer,
-  onOrderNumberChange,
   onClientChange,
-  onContainerToAddChange,
-  onNewContainerNumberChange,
-  onAddSelectedContainer,
+  onContainerSelect,
   onRemoveSelectedContainer,
 }: {
-  orderNumber: string;
-  client: string;
+  clients: Client[];
   containers: Container[];
-  selectedContainers: string[];
+  clientId: string;
   containerToAdd: string;
-  newContainerNumber: string;
+  selectedContainers: string[];
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-  onCreateContainer: (event: React.FormEvent<HTMLFormElement>) => void;
-  onOrderNumberChange: (value: string) => void;
   onClientChange: (value: string) => void;
-  onContainerToAddChange: (value: string) => void;
-  onNewContainerNumberChange: (value: string) => void;
-  onAddSelectedContainer: () => void;
+  onContainerSelect: (value: string) => void;
   onRemoveSelectedContainer: (number: string) => void;
 }) {
   const availableContainers = containers.filter((container) => !selectedContainers.includes(container.number));
@@ -401,78 +285,57 @@ function CreateOrderPage({
     <>
       <div className="page-head">
         <div>
-          <button className="back-link" type="button" onClick={onBack}>
+          <button className="back-button" type="button" onClick={onBack}>
             <ArrowLeft size={16} />
             Назад к списку
           </button>
           <h1>Создание заявки на поставку</h1>
-          <p>Укажите номер, клиента и контейнеры из справочника</p>
+          <p>Номер заявки будет сформирован автоматически</p>
         </div>
       </div>
 
-      <div className="layout-grid">
-        <form className="form-panel" onSubmit={onSubmit}>
-          <h2>Данные заявки</h2>
-          <label>
-            Номер заявки
-            <input value={orderNumber} onChange={(event) => onOrderNumberChange(event.target.value)} placeholder="Например, RO-001" />
-          </label>
-          <label>
-            Клиент
-            <input value={client} onChange={(event) => onClientChange(event.target.value)} placeholder="Название клиента" />
-          </label>
-          <div className="field-block">
-            <span>Контейнеры</span>
-            <div className="select-row">
-              <select value={containerToAdd} onChange={(event) => onContainerToAddChange(event.target.value)}>
-                <option value="">Выберите контейнер</option>
-                {availableContainers.map((container) => (
-                  <option value={container.number} key={container.id}>
-                    {container.number}
-                  </option>
-                ))}
-              </select>
-              <button className="icon-blue" type="button" onClick={onAddSelectedContainer} aria-label="Добавить выбранный контейнер">
-                <Plus size={18} />
-              </button>
-            </div>
-            <div className="container-list selected">
-              {selectedContainers.map((number) => (
-                <button className="container-chip removable" type="button" onClick={() => onRemoveSelectedContainer(number)} key={number}>
-                  {number}
-                  <span>×</span>
-                </button>
-              ))}
-              {selectedContainers.length === 0 && <p className="muted">Контейнеры не выбраны</p>}
-            </div>
-          </div>
-          <button className="primary-button" type="submit">
-            <Plus size={16} />
-            Создать заявку
-          </button>
-        </form>
-
-        <section className="dictionary-panel">
-          <h2>Справочник контейнеров</h2>
-          <form className="inline-form" onSubmit={onCreateContainer}>
-            <input
-              value={newContainerNumber}
-              onChange={(event) => onNewContainerNumberChange(event.target.value)}
-              placeholder="Номер контейнера"
-            />
-            <button className="icon-blue" type="submit" aria-label="Добавить контейнер">
-              <Plus size={18} />
-            </button>
-          </form>
-          <div className="container-list">
-            {containers.map((container) => (
-              <span className="container-chip" key={container.id}>
-                {container.number}
-              </span>
+      <form className="form-panel create-page-form" onSubmit={onSubmit}>
+        <h2>Данные заявки</h2>
+        <label>
+          Клиент
+          <select value={clientId} onChange={(event) => onClientChange(event.target.value)}>
+            <option value="" disabled>
+              Выберите клиента
+            </option>
+            {clients.map((client) => (
+              <option value={client.id} key={client.id}>
+                {client.name}
+              </option>
             ))}
-          </div>
-        </section>
-      </div>
+          </select>
+        </label>
+
+        <label>
+          Контейнеры
+          <select value={containerToAdd} onChange={(event) => onContainerSelect(event.target.value)}>
+            {availableContainers.map((container) => (
+              <option value={container.number} key={container.id}>
+                {container.number}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="container-list selected">
+          {selectedContainers.map((number) => (
+            <button className="container-chip removable" type="button" onClick={() => onRemoveSelectedContainer(number)} key={number}>
+              {number}
+              <span>×</span>
+            </button>
+          ))}
+          {selectedContainers.length === 0 && <p className="muted">Контейнеры не выбраны</p>}
+        </div>
+
+        <button className="design-button form-submit" type="submit">
+          <Plus size={16} />
+          Создать
+        </button>
+      </form>
     </>
   );
 }
@@ -489,7 +352,7 @@ function OrderDetailsPage({
   if (!order) {
     return (
       <section className="details-panel">
-        <button className="back-link" type="button" onClick={onBack}>
+        <button className="back-button" type="button" onClick={onBack}>
           <ArrowLeft size={16} />
           Назад к списку
         </button>
@@ -502,16 +365,16 @@ function OrderDetailsPage({
     <>
       <div className="page-head">
         <div>
-          <button className="back-link" type="button" onClick={onBack}>
+          <button className="back-button" type="button" onClick={onBack}>
             <ArrowLeft size={16} />
             Назад к списку
           </button>
           <h1>Карточка заявки {order.number}</h1>
           <p>Информация о заявке на поставку</p>
         </div>
-        <button className="primary-top-button" type="button" onClick={onCreate}>
+        <button className="design-button" type="button" onClick={onCreate}>
           <Plus size={16} />
-          Создать новую
+          Создать
         </button>
       </div>
 
@@ -523,7 +386,7 @@ function OrderDetailsPage({
           </div>
           <div>
             <span>Клиент</span>
-            <strong>{order.client}</strong>
+            <strong>{order.client.name}</strong>
           </div>
           <div>
             <span>Дата создания</span>

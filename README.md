@@ -62,6 +62,7 @@ Frontend будет доступен на `http://localhost:5173`.
 ## Данные
 
 - `container` - справочник контейнеров
+- `client` - справочник клиентов
 - `receiving_order` - заявка на поставку
 - `receiving_order_container` - контейнеры в заявке
 
@@ -69,5 +70,6 @@ Frontend будет доступен на `http://localhost:5173`.
 
 - `GET /api/containers` - список контейнеров
 - `POST /api/containers` - создать контейнер в справочнике
+- `GET /api/clients` - список клиентов
 - `GET /api/receiving-orders` - список заявок на поставку
 - `POST /api/receiving-orders` - создать заявку на поставку

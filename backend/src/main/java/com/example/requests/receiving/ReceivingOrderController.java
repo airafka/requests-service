@@ -22,10 +22,16 @@ import java.util.stream.Collectors;
 public class ReceivingOrderController {
     private final ReceivingOrderRepository orderRepository;
     private final ContainerRepository containerRepository;
+    private final ClientRepository clientRepository;
 
-    public ReceivingOrderController(ReceivingOrderRepository orderRepository, ContainerRepository containerRepository) {
+    public ReceivingOrderController(
+        ReceivingOrderRepository orderRepository,
+        ContainerRepository containerRepository,
+        ClientRepository clientRepository
+    ) {
         this.orderRepository = orderRepository;
         this.containerRepository = containerRepository;
+        this.clientRepository = clientRepository;
     }
 
     @GetMapping
@@ -39,10 +45,8 @@ public class ReceivingOrderController {
     @Transactional
     @ResponseStatus(HttpStatus.CREATED)
     public ReceivingOrderResponse create(@Valid @RequestBody CreateReceivingOrderDto dto) {
-        String orderNumber = normalize(dto.number());
-        if (orderRepository.existsByNumberIgnoreCase(orderNumber)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Receiving order already exists");
-        }
+        ClientEntity client = clientRepository.findById(dto.clientId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown client"));
 
         List<String> requestedNumbers = dto.containerNumbers().stream()
             .map(this::normalize)
@@ -62,11 +66,15 @@ public class ReceivingOrderController {
         }
 
         ReceivingOrder order = new ReceivingOrder();
-        order.setNumber(orderNumber);
-        order.setClient(dto.client().trim());
+        order.setNumber(nextOrderNumber());
+        order.setClient(client);
         requestedNumbers.forEach(number -> order.addContainer(containersByNumber.get(number.toUpperCase())));
 
         return ReceivingOrderResponse.fromEntity(orderRepository.save(order));
+    }
+
+    private String nextOrderNumber() {
+        return "RO-" + (System.currentTimeMillis() % 1_000_000_000L);
     }
 
     private String normalize(String value) {

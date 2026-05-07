@@ -7,6 +7,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
@@ -25,8 +27,9 @@ public class ReceivingOrder {
     @Column(nullable = false, unique = true, length = 64)
     private String number;
 
-    @Column(nullable = false, length = 180)
-    private String client;
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "client_id", nullable = false)
+    private ClientEntity client;
 
     @Column(nullable = false)
     private OffsetDateTime createdAt;
@@ -51,11 +54,11 @@ public class ReceivingOrder {
         this.number = number;
     }
 
-    public String getClient() {
+    public ClientEntity getClient() {
         return client;
     }
 
-    public void setClient(String client) {
+    public void setClient(ClientEntity client) {
         this.client = client;
     }
 

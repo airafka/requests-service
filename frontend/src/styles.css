@@ -12,7 +12,7 @@
 
 body {
   margin: 0;
-  min-width: 1100px;
+  min-width: 980px;
   min-height: 100vh;
   background: #f9fafc;
 }
@@ -24,83 +24,7 @@ select {
 }
 
 .app {
-  display: flex;
   min-height: 100vh;
-}
-
-.sidebar {
-  position: fixed;
-  inset: 0 auto 0 0;
-  display: flex;
-  width: 72px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  background: #ffffff;
-  box-shadow: 2px 0 3px #f2f2f2;
-}
-
-.sidebar-top {
-  display: flex;
-  width: 40px;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.logo-mark {
-  display: grid;
-  width: 36px;
-  height: 24px;
-  grid-template-columns: repeat(3, 6px);
-  grid-template-rows: repeat(3, 6px);
-  gap: 3px;
-  align-content: center;
-  justify-content: center;
-}
-
-.logo-mark span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #3472ed;
-}
-
-.search-button,
-.nav-icon,
-.settings-button {
-  display: flex;
-  width: 40px;
-  height: 40px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 5px;
-  background: #ffffff;
-  color: #6f7684;
-  cursor: pointer;
-}
-
-.search-button {
-  border: 1px solid #f2f4f7;
-  color: #9ca3b1;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.nav-icon.active {
-  border-radius: 3px;
-  background: #f2f7ff;
-  color: #3472ed;
-}
-
-.content {
-  width: calc(100% - 72px);
-  margin-left: 72px;
 }
 
 .navbar {
@@ -109,13 +33,13 @@ select {
   z-index: 4;
   height: 60px;
   background: #ffffff;
-  box-shadow: 2px 2px 3px #f2f2f2;
+  box-shadow: 0 2px 3px #f2f2f2;
 }
 
 .breadcrumbs {
   position: absolute;
   top: 10px;
-  left: 16px;
+  left: 32px;
   display: flex;
   height: 37px;
   align-items: center;
@@ -128,7 +52,7 @@ select {
 .avatar {
   position: absolute;
   top: 11px;
-  right: 16px;
+  right: 24px;
   display: flex;
   width: 38px;
   height: 38px;
@@ -141,7 +65,7 @@ select {
 }
 
 .workspace {
-  padding: 16px;
+  padding: 24px 32px;
 }
 
 .page-head {
@@ -178,34 +102,43 @@ h2 {
   font-size: 14px;
 }
 
-.refresh-button,
-.primary-button,
-.icon-blue {
+.design-button {
   display: inline-flex;
+  height: 40px;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   border: 0;
   border-radius: 4px;
+  padding: 0 16px;
   background: #3472ed;
   color: #ffffff;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  box-shadow: 3px 2px 3px rgba(194, 199, 210, 0.5);
   cursor: pointer;
 }
 
-.refresh-button {
-  height: 40px;
-  gap: 8px;
-  padding: 0 14px;
-}
-
-.layout-grid {
-  display: grid;
-  grid-template-columns: minmax(360px, 520px) 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
+.back-button {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #f2f4f7;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #3472ed;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 1px 2px #f2f2f2;
+  cursor: pointer;
 }
 
 .form-panel,
-.dictionary-panel,
+.details-panel,
 .table-section {
   border: 1px solid #f2f4f7;
   border-radius: 5px;
@@ -214,12 +147,15 @@ h2 {
 }
 
 .form-panel,
-.dictionary-panel {
+.details-panel {
   padding: 18px;
 }
 
-label,
-.field-block {
+.create-page-form {
+  width: min(620px, 100%);
+}
+
+label {
   display: grid;
   gap: 8px;
   margin-bottom: 14px;
@@ -239,22 +175,8 @@ select {
   background: #ffffff;
 }
 
-.select-row,
-.inline-form {
-  display: grid;
-  grid-template-columns: 1fr 40px;
-  gap: 8px;
-}
-
-.primary-button {
-  width: 100%;
-  height: 40px;
-  gap: 8px;
-  font-size: 14px;
-}
-
-.icon-blue {
-  height: 40px;
+.form-submit {
+  margin-top: 18px;
 }
 
 .container-list {
@@ -264,13 +186,17 @@ select {
   margin-top: 14px;
 }
 
+.container-list.large {
+  margin-top: 0;
+}
+
 .container-chip {
   display: inline-flex;
   height: 28px;
   align-items: center;
   gap: 6px;
-  border-radius: 5px;
   border: 0;
+  border-radius: 5px;
   padding: 0 10px;
   background: #eef4ff;
   color: #175cd3;
@@ -372,6 +298,14 @@ select {
   background: #f9fafc;
 }
 
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover td {
+  background: #f2f7ff;
+}
+
 .control-head,
 .more-cell {
   width: 52px;
@@ -381,4 +315,30 @@ select {
 .empty-cell {
   text-align: center;
   color: #747985;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.detail-grid div {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #f2f4f7;
+  border-radius: 5px;
+  padding: 14px;
+  background: #f9fafc;
+}
+
+.detail-grid span {
+  color: #747985;
+  font-size: 12px;
+}
+
+.detail-grid strong {
+  color: #191a1f;
+  font-size: 16px;
 }

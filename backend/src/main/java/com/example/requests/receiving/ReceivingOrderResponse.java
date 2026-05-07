@@ -6,7 +6,7 @@ import java.util.List;
 public record ReceivingOrderResponse(
     Long id,
     String number,
-    String client,
+    ClientResponse client,
     OffsetDateTime createdAt,
     List<ContainerResponse> containers
 ) {
@@ -18,7 +18,7 @@ public record ReceivingOrderResponse(
         return new ReceivingOrderResponse(
             order.getId(),
             order.getNumber(),
-            order.getClient(),
+            ClientResponse.fromEntity(order.getClient()),
             order.getCreatedAt(),
             containers
         );
