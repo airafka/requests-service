@@ -23,15 +23,18 @@ public class ReceivingOrderController {
     private final ReceivingOrderRepository orderRepository;
     private final ContainerRepository containerRepository;
     private final ClientRepository clientRepository;
+    private final ContainerOwnerService containerOwnerService;
 
     public ReceivingOrderController(
         ReceivingOrderRepository orderRepository,
         ContainerRepository containerRepository,
-        ClientRepository clientRepository
+        ClientRepository clientRepository,
+        ContainerOwnerService containerOwnerService
     ) {
         this.orderRepository = orderRepository;
         this.containerRepository = containerRepository;
         this.clientRepository = clientRepository;
+        this.containerOwnerService = containerOwnerService;
     }
 
     @GetMapping
@@ -70,7 +73,9 @@ public class ReceivingOrderController {
         order.setClient(client);
         requestedNumbers.forEach(number -> order.addContainer(containersByNumber.get(number.toUpperCase())));
 
-        return ReceivingOrderResponse.fromEntity(orderRepository.save(order));
+        ReceivingOrder saved = orderRepository.saveAndFlush(order);
+        containerOwnerService.createReceivingHistory(saved);
+        return ReceivingOrderResponse.fromEntity(saved);
     }
 
     private String nextOrderNumber() {
