@@ -171,6 +171,58 @@ h2 {
   padding: 18px;
 }
 
+.uikit-form-shell,
+.uikit-details-card {
+  width: min(760px, 100%);
+}
+
+.uikit-table-card,
+.uikit-form-shell,
+.uikit-details-card {
+  background: #ffffff;
+  border-radius: 5px;
+  box-shadow: 0 1px 2px #f2f2f2;
+}
+
+.uikit-form {
+  display: grid;
+  gap: 18px;
+  padding: 10px 0;
+}
+
+.uikit-form h2 {
+  margin-bottom: 0;
+}
+
+.uikit-form-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 4px;
+}
+
+.uikit-details {
+  padding: 10px 0;
+}
+
+.uikit-table-card .table-section {
+  border: 0;
+  box-shadow: none;
+}
+
+.uikit-table-card .orders-table th:first-child,
+.uikit-table-card .orders-table td:first-child {
+  border-left: 0;
+}
+
+.uikit-table-card .orders-table th:last-child,
+.uikit-table-card .orders-table td:last-child {
+  border-right: 0;
+}
+
+.uikit-table-card .orders-table thead tr:first-child th {
+  border-top: 0;
+}
+
 .create-page-form {
   width: min(620px, 100%);
 }

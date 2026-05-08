@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { UikitProvider } from "@alabuga/uikit";
+import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } from "@alabuga/uikit";
 import { ArrowLeft, Boxes, ChevronDown, FileText, Repeat2, Users } from "lucide-react";
 import "./styles.css";
 
@@ -308,6 +308,7 @@ function App() {
             onBack={() => setPage("receiving-list")}
             onSubmit={createReceivingOrder}
             onClientChange={setReceivingClientId}
+            onContainersChange={setReceivingContainers}
             onToggleContainer={toggleReceivingContainer}
             onToggleContainerDropdown={() => setIsReceivingDropdownOpen((value) => !value)}
             onCloseContainerDropdown={() => setIsReceivingDropdownOpen(false)}
@@ -391,22 +392,26 @@ function ReceivingOrdersListPage({
   return (
     <>
       <PageHead title="Заявки на поставку">
-        <button className="design-button" type="button" onClick={onCreate}>
+        <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
           Создать
-        </button>
+        </BaseButton>
       </PageHead>
 
-      <OrdersTable columns={["Номер заявки", "Клиент", "КТК", "Дата создания"]}>
-        {orders.map((order) => (
-          <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
-            <td>{order.number}</td>
-            <td>{order.client.name}</td>
-            <td>{order.containers.map((container) => container.number).join(", ")}</td>
-            <td>{formatDateTime(order.createdAt)}</td>
-          </tr>
-        ))}
-        {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
-      </OrdersTable>
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Номер заявки", "Клиент", "КТК", "Дата создания"]}>
+            {orders.map((order) => (
+              <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
+                <td>{order.number}</td>
+                <td>{order.client.name}</td>
+                <td>{order.containers.map((container) => container.number).join(", ")}</td>
+                <td>{formatDateTime(order.createdAt)}</td>
+              </tr>
+            ))}
+            {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
     </>
   );
 }
@@ -525,32 +530,48 @@ function CreateReceivingOrderPage(props: {
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClientChange: (value: string) => void;
+  onContainersChange: (value: string[]) => void;
   onToggleContainer: (number: string) => void;
   onToggleContainerDropdown: () => void;
   onCloseContainerDropdown: () => void;
 }) {
-  const selectedLabel = props.selectedContainers.length === 0 ? "" : props.selectedContainers.join(", ");
+  const containerOptions = props.containers.map((container) => ({
+    value: container.number,
+    label: container.number,
+  }));
 
   return (
     <>
       <PageHead title="Создание заявки на поставку">
-        <BackButton onClick={props.onBack} />
+        <UikitBackButton onClick={props.onBack} />
       </PageHead>
 
-      <form className="form-panel create-page-form" onSubmit={props.onSubmit}>
-        <h2>Данные заявки</h2>
-        <ClientSelect label="Клиент" clients={props.clients} value={props.clientId} onChange={props.onClientChange} />
-        <ContainerDropdown
-          containers={props.containers}
-          selectedLabel={selectedLabel}
-          isOpen={props.isContainerDropdownOpen}
-          isSelected={(container) => props.selectedContainers.includes(container.number)}
-          onToggle={(container) => props.onToggleContainer(container.number)}
-          onToggleOpen={props.onToggleContainerDropdown}
-          onClose={props.onCloseContainerDropdown}
-        />
-        <SubmitButton label="Сохранить" />
-      </form>
+      <div className="uikit-form-shell">
+        <PageCard>
+          <form className="uikit-form create-page-form" onSubmit={props.onSubmit}>
+            <h2>Данные заявки</h2>
+            <Select
+              label="Клиент"
+              placeholder=" "
+              value={props.clientId ? Number(props.clientId) : undefined}
+              options={props.clients.map((client) => ({ value: client.id, label: client.name }))}
+              onChange={(value) => props.onClientChange(value ? String(value) : "")}
+            />
+            <SelectMulti
+              label="КТК"
+              placeholder=" "
+              value={props.selectedContainers}
+              options={containerOptions}
+              onChange={(value) => props.onContainersChange(value.map(String))}
+            />
+            <div className="uikit-form-actions">
+              <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
+                Сохранить
+              </BaseButton>
+            </div>
+          </form>
+        </PageCard>
+      </div>
     </>
   );
 }
@@ -622,23 +643,27 @@ function ReceivingOrderDetailsPage({
     <>
       <PageHead title={`Заявка на поставку ${order.number}`}>
         <div className="head-actions">
-          <BackButton onClick={onBack} />
-          <button className="design-button" type="button" onClick={onCreate}>
+          <UikitBackButton onClick={onBack} />
+          <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
             Создать
-          </button>
+          </BaseButton>
         </div>
       </PageHead>
 
-      <section className="details-panel">
-        <div className="detail-grid">
-          <DetailItem label="Номер заявки" value={order.number} />
-          <DetailItem label="Клиент" value={order.client.name} />
-          <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
-        </div>
+      <div className="uikit-details-card">
+        <PageCard>
+          <section className="uikit-details">
+            <div className="detail-grid">
+              <DetailItem label="Номер заявки" value={order.number} />
+              <DetailItem label="Клиент" value={order.client.name} />
+              <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
+            </div>
 
-        <h2>КТК в заявке</h2>
-        <ContainerChips containers={order.containers} />
-      </section>
+            <h2>КТК в заявке</h2>
+            <ContainerChips containers={order.containers} />
+          </section>
+        </PageCard>
+      </div>
     </>
   );
 }
@@ -812,6 +837,14 @@ function BackButton({ onClick }: { onClick: () => void }) {
       <ArrowLeft size={16} />
       Назад к списку
     </button>
+  );
+}
+
+function UikitBackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <BaseButton buttonType={ButtonType.outlined} startIcon={<ArrowLeft size={16} />} onClick={onClick}>
+      Назад к списку
+    </BaseButton>
   );
 }
 
