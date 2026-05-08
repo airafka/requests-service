@@ -582,6 +582,7 @@ function CreateReceivingOrderPage(props: {
               placeholder=" "
               value={props.selectedContainers}
               options={containerOptions}
+              selectAllLabel="Выбрать все КТК"
               onChange={(value) => props.onContainersChange(value.map(String))}
             />
             <div className="uikit-form-actions">
@@ -643,6 +644,7 @@ function CreateOwnerChangeOrderPage(props: {
               placeholder=" "
               value={props.selectedContainers}
               options={containerOptions}
+              selectAllLabel="Выбрать все КТК"
               onChange={(value) => props.onContainersChange(value.map(Number))}
             />
             <div className="uikit-form-actions">

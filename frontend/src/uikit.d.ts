@@ -58,6 +58,7 @@ declare module "@alabuga/uikit" {
     error?: boolean;
     hintText?: string;
     withoutClearIcon?: boolean;
+    selectAllLabel?: string;
     className?: string;
   }): JSX.Element;
 }

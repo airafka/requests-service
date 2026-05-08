@@ -34,6 +34,7 @@ export const SelectMulti = forwardRef<HTMLInputElement, SelectMultiProps>(
       withOptionsBadges = false,
       withoutClearIcon = true,
       optionsToBadgeColors,
+      selectAllLabel,
       customOpener,
       colors,
       isTable
@@ -121,7 +122,7 @@ export const SelectMulti = forwardRef<HTMLInputElement, SelectMultiProps>(
             }
           >
             <CheckBox checked={isAllSelected} size={CommonSize.Small} />
-            {t("Shared:selectMultiple")}
+            {selectAllLabel ?? t("Shared:selectMultiple")}
           </MenuItem>
 
           {options.map((item) => {

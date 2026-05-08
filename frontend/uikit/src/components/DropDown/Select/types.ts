@@ -80,6 +80,7 @@ export interface SelectMultiProps extends ColorsProps{
   className?: string;
   withOptionsBadges?: boolean;
   optionsToBadgeColors?: { [key: string]: colorBadge };
+  selectAllLabel?: string;
   customOpener?: (props: {
     isOpen: boolean;
     setAnchorRef: (node: HTMLElement | null) => void;
