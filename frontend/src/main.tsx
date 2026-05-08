@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } from "@alabuga/uikit";
-import { ArrowLeft, Boxes, ChevronDown, FileText, Repeat2, Users } from "lucide-react";
+import { ArrowLeft, ChevronDown, FileText, Repeat2, Users } from "lucide-react";
 import "./styles.css";
 
 type Page =
@@ -252,7 +252,14 @@ function App() {
     <main className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <Boxes size={22} />
+          <span className="alis-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
           <span>ALIS</span>
         </div>
         <nav className="sidebar-nav">
@@ -262,7 +269,7 @@ function App() {
             onClick={() => setPage("receiving-list")}
           >
             <FileText size={18} />
-            Заявки на поставку
+            <span>Заявки на поставку</span>
           </button>
           <button
             className={page.startsWith("owner") ? "active" : ""}
@@ -270,7 +277,7 @@ function App() {
             onClick={() => setPage("owner-list")}
           >
             <Repeat2 size={18} />
-            Заявки на смену владельца КТК
+            <span>Заявки на смену владельца КТК</span>
           </button>
           <button
             className={page === "current-owners" || page === "container-owner-details" ? "active" : ""}
@@ -278,7 +285,7 @@ function App() {
             onClick={() => setPage("current-owners")}
           >
             <Users size={18} />
-            Владельцы КТК
+            <span>Владельцы КТК</span>
           </button>
         </nav>
       </aside>
@@ -347,6 +354,7 @@ function App() {
             onSubmit={createOwnerChangeOrder}
             onClientChange={setOwnerClientId}
             onCommentChange={setOwnerComment}
+            onContainersChange={setOwnerContainers}
             onToggleContainer={toggleOwnerContainer}
             onToggleContainerDropdown={() => setIsOwnerDropdownOpen((value) => !value)}
             onCloseContainerDropdown={() => setIsOwnerDropdownOpen(false)}
@@ -430,22 +438,26 @@ function OwnerChangeOrdersListPage({
   return (
     <>
       <PageHead title="Заявки на смену владельца КТК">
-        <button className="design-button" type="button" onClick={onCreate}>
+        <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
           Создать
-        </button>
+        </BaseButton>
       </PageHead>
 
-      <OrdersTable columns={["Номер заявки", "Новый владелец", "КТК", "Дата создания"]}>
-        {orders.map((order) => (
-          <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
-            <td>{order.number}</td>
-            <td>{order.newClient.name}</td>
-            <td>{order.containers.map((container) => container.number).join(", ")}</td>
-            <td>{formatDateTime(order.createdAt)}</td>
-          </tr>
-        ))}
-        {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
-      </OrdersTable>
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Номер заявки", "Новый владелец", "КТК", "Дата создания"]}>
+            {orders.map((order) => (
+              <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
+                <td>{order.number}</td>
+                <td>{order.newClient.name}</td>
+                <td>{order.containers.map((container) => container.number).join(", ")}</td>
+                <td>{formatDateTime(order.createdAt)}</td>
+              </tr>
+            ))}
+            {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
     </>
   );
 }
@@ -463,16 +475,20 @@ function CurrentOwnersPage({
     <>
       <PageHead title="Владельцы КТК" />
 
-      <OrdersTable columns={["КТК", "Клиент", "Операция"]}>
-        {owners.map((owner) => (
-          <tr className="clickable-row" key={owner.container.id} onClick={() => onOpen(owner.container)}>
-            <td>{owner.container.number}</td>
-            <td>{owner.client.name}</td>
-            <td>{owner.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
-          </tr>
-        ))}
-        {owners.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Активных владельцев пока нет"} />}
-      </OrdersTable>
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["КТК", "Клиент", "Операция"]}>
+            {owners.map((owner) => (
+              <tr className="clickable-row" key={owner.container.id} onClick={() => onOpen(owner.container)}>
+                <td>{owner.container.number}</td>
+                <td>{owner.client.name}</td>
+                <td>{owner.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
+              </tr>
+            ))}
+            {owners.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Активных владельцев пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
     </>
   );
 }
@@ -498,25 +514,29 @@ function ContainerOwnerDetailsPage({
         <BackButton onClick={onBack} />
       </PageHead>
 
-      <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дата"]}>
-        {history.map((item) => (
-          <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
-            <td>{item.client.name}</td>
-            <td>{item.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
-            <td>
-              {item.sourceOrderId ? (
-                <button className="table-link" type="button" onClick={() => onOpenSource(item)}>
-                  {item.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"} №{item.sourceNumber ?? item.sourceOrderId}
-                </button>
-              ) : (
-                "-"
-              )}
-            </td>
-            <td>{formatDateTime(item.validFrom)}</td>
-          </tr>
-        ))}
-        {history.length === 0 && <EmptyRow colSpan={4} text="Истории владения пока нет" />}
-      </OrdersTable>
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дата"]}>
+            {history.map((item) => (
+              <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
+                <td>{item.client.name}</td>
+                <td>{item.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
+                <td>
+                  {item.sourceOrderId ? (
+                    <button className="table-link" type="button" onClick={() => onOpenSource(item)}>
+                      {item.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"} №{item.sourceNumber ?? item.sourceOrderId}
+                    </button>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+                <td>{formatDateTime(item.validFrom)}</td>
+              </tr>
+            ))}
+            {history.length === 0 && <EmptyRow colSpan={4} text="Истории владения пока нет" />}
+          </OrdersTable>
+        </PageCard>
+      </div>
     </>
   );
 }
@@ -587,41 +607,52 @@ function CreateOwnerChangeOrderPage(props: {
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClientChange: (value: string) => void;
   onCommentChange: (value: string) => void;
+  onContainersChange: (value: number[]) => void;
   onToggleContainer: (id: number) => void;
   onToggleContainerDropdown: () => void;
   onCloseContainerDropdown: () => void;
 }) {
-  const selectedNumbers = props.containers
-    .filter((container) => props.selectedContainers.includes(container.id))
-    .map((container) => container.number);
-  const selectedLabel = selectedNumbers.length === 0 ? "" : selectedNumbers.join(", ");
+  const containerOptions = props.containers.map((container) => ({
+    value: container.id,
+    label: container.number,
+  }));
 
   return (
     <>
       <PageHead title="Создание заявки на смену владельца КТК">
-        <BackButton onClick={props.onBack} />
+        <UikitBackButton onClick={props.onBack} />
       </PageHead>
 
-      <form className="form-panel create-page-form" onSubmit={props.onSubmit}>
-        <h2>Данные заявки</h2>
-        <ClientSelect label="Новый владелец" clients={props.clients} value={props.clientId} onChange={props.onClientChange} />
-
-        <label>
-          Комментарий
-          <textarea value={props.comment} onChange={(event) => props.onCommentChange(event.target.value)} rows={4} />
-        </label>
-
-        <ContainerDropdown
-          containers={props.containers}
-          selectedLabel={selectedLabel}
-          isOpen={props.isContainerDropdownOpen}
-          isSelected={(container) => props.selectedContainers.includes(container.id)}
-          onToggle={(container) => props.onToggleContainer(container.id)}
-          onToggleOpen={props.onToggleContainerDropdown}
-          onClose={props.onCloseContainerDropdown}
-        />
-        <SubmitButton label="Сохранить" />
-      </form>
+      <div className="uikit-form-shell">
+        <PageCard>
+          <form className="uikit-form create-page-form" onSubmit={props.onSubmit}>
+            <h2>Данные заявки</h2>
+            <Select
+              label="Новый владелец"
+              placeholder=" "
+              value={props.clientId ? Number(props.clientId) : undefined}
+              options={props.clients.map((client) => ({ value: client.id, label: client.name }))}
+              onChange={(value) => props.onClientChange(value ? String(value) : "")}
+            />
+            <label>
+              Комментарий
+              <textarea value={props.comment} onChange={(event) => props.onCommentChange(event.target.value)} rows={4} />
+            </label>
+            <SelectMulti
+              label="КТК"
+              placeholder=" "
+              value={props.selectedContainers}
+              options={containerOptions}
+              onChange={(value) => props.onContainersChange(value.map(Number))}
+            />
+            <div className="uikit-form-actions">
+              <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
+                Сохранить
+              </BaseButton>
+            </div>
+          </form>
+        </PageCard>
+      </div>
     </>
   );
 }
@@ -729,7 +760,6 @@ function OrdersTable({ columns, children }: { columns: string[]; children: React
                   <ChevronDown size={14} />
                 </th>
               ))}
-              <th className="control-head" />
             </tr>
           </thead>
           <tbody>{children}</tbody>
