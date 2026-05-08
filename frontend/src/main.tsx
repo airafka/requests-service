@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { UikitProvider } from "@alabuga/uikit";
 import { ArrowLeft, Boxes, ChevronDown, FileText, Repeat2, Users } from "lucide-react";
 import "./styles.css";
 
@@ -863,4 +864,10 @@ function formatDateTime(value: string) {
   });
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <UikitProvider>
+      <App />
+    </UikitProvider>
+  </React.StrictMode>,
+);

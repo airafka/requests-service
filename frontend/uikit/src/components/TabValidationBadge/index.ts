@@ -1,0 +1,1 @@
+export { TabValidationBadge } from "./TabValidationBadge";

@@ -1,0 +1,4 @@
+# Не включать в npm пакет
+*.md
+style-dictionary.config.cjs
+
