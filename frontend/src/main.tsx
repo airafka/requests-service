@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } from "@alabuga/uikit";
-import { ArrowLeft, ChevronDown, FileText, Repeat2, Users } from "lucide-react";
+import { ArrowLeft, Box, ChevronDown, FileText, Repeat2, Users } from "lucide-react";
 import "./styles.css";
 
 type Page =
@@ -12,7 +12,8 @@ type Page =
   | "owner-create"
   | "owner-details"
   | "current-owners"
-  | "container-owner-details";
+  | "container-owner-details"
+  | "containers-list";
 
 type Client = {
   id: number;
@@ -84,6 +85,7 @@ function App() {
   const [ownerClientId, setOwnerClientId] = React.useState("");
   const [ownerComment, setOwnerComment] = React.useState("");
   const [ownerContainers, setOwnerContainers] = React.useState<number[]>([]);
+  const [newContainerNumber, setNewContainerNumber] = React.useState("");
   const [isReceivingDropdownOpen, setIsReceivingDropdownOpen] = React.useState(false);
   const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -207,6 +209,31 @@ function App() {
     setPage("owner-details");
   }
 
+  async function createContainer(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!newContainerNumber.trim()) {
+      setError("Введите номер КТК");
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/containers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ number: newContainerNumber }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось создать КТК"));
+      return;
+    }
+
+    setNewContainerNumber("");
+    await loadData();
+    setPage("containers-list");
+  }
+
   function toggleReceivingContainer(number: string) {
     setReceivingContainers((current) =>
       current.includes(number) ? current.filter((item) => item !== number) : [...current, number],
@@ -286,6 +313,14 @@ function App() {
           >
             <Users size={18} />
             <span>Владельцы КТК</span>
+          </button>
+          <button
+            className={page === "containers-list" ? "active" : ""}
+            type="button"
+            onClick={() => setPage("containers-list")}
+          >
+            <Box size={18} />
+            <span>КТК</span>
           </button>
         </nav>
       </aside>
@@ -379,6 +414,16 @@ function App() {
             history={selectedOwnerHistory}
             onBack={() => setPage("current-owners")}
             onOpenSource={openSource}
+          />
+        )}
+
+        {page === "containers-list" && (
+          <ContainersPage
+            containers={containers}
+            isLoading={isLoading}
+            number={newContainerNumber}
+            onNumberChange={setNewContainerNumber}
+            onSubmit={createContainer}
           />
         )}
       </section>
@@ -488,6 +533,58 @@ function CurrentOwnersPage({
             {owners.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Активных владельцев пока нет"} />}
           </OrdersTable>
         </PageCard>
+      </div>
+    </>
+  );
+}
+
+function ContainersPage({
+  containers,
+  isLoading,
+  number,
+  onNumberChange,
+  onSubmit,
+}: {
+  containers: Container[];
+  isLoading: boolean;
+  number: string;
+  onNumberChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <>
+      <PageHead title="КТК" />
+
+      <div className="reference-layout">
+        <div className="uikit-form-shell reference-form">
+          <PageCard>
+            <form className="uikit-form" onSubmit={onSubmit}>
+              <h2>Добавление КТК</h2>
+              <label>
+                Номер КТК
+                <input value={number} onChange={(event) => onNumberChange(event.target.value)} maxLength={32} />
+              </label>
+              <div className="uikit-form-actions">
+                <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
+                  Сохранить
+                </BaseButton>
+              </div>
+            </form>
+          </PageCard>
+        </div>
+
+        <div className="uikit-table-card reference-table">
+          <PageCard>
+            <OrdersTable columns={["Номер КТК"]}>
+              {containers.map((container) => (
+                <tr key={container.id}>
+                  <td>{container.number}</td>
+                </tr>
+              ))}
+              {containers.length === 0 && <EmptyRow colSpan={1} text={isLoading ? "Загрузка..." : "КТК пока нет"} />}
+            </OrdersTable>
+          </PageCard>
+        </div>
       </div>
     </>
   );

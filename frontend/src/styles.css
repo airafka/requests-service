@@ -289,6 +289,22 @@ h2 {
   padding-top: 4px;
 }
 
+.reference-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.reference-form,
+.reference-table {
+  width: 100%;
+}
+
+.reference-table .orders-table {
+  min-width: 360px;
+}
+
 .uikit-details {
   padding: 10px 0;
 }
