@@ -37,6 +37,7 @@ public class ContainerOwnerHistory {
     /**
      * Polymorphic source id:
      * RECEIVING -> receiving_order_container.id,
+     * SHIPPING -> shipping_order_container.id,
      * OWNER_CHANGE -> container_owner_change_order.id.
      */
     @Column(nullable = false)

@@ -20,19 +20,22 @@ public class ContainerOwnerService {
     private final ContainerRepository containerRepository;
     private final ClientRepository clientRepository;
     private final ReceivingOrderContainerRepository receivingOrderContainerRepository;
+    private final ShippingOrderContainerRepository shippingOrderContainerRepository;
 
     public ContainerOwnerService(
         ContainerOwnerHistoryRepository historyRepository,
         ContainerOwnerChangeOrderRepository changeOrderRepository,
         ContainerRepository containerRepository,
         ClientRepository clientRepository,
-        ReceivingOrderContainerRepository receivingOrderContainerRepository
+        ReceivingOrderContainerRepository receivingOrderContainerRepository,
+        ShippingOrderContainerRepository shippingOrderContainerRepository
     ) {
         this.historyRepository = historyRepository;
         this.changeOrderRepository = changeOrderRepository;
         this.containerRepository = containerRepository;
         this.clientRepository = clientRepository;
         this.receivingOrderContainerRepository = receivingOrderContainerRepository;
+        this.shippingOrderContainerRepository = shippingOrderContainerRepository;
     }
 
     @Transactional
@@ -51,6 +54,39 @@ public class ContainerOwnerService {
             history.setOperationType(ContainerOwnerOperationType.RECEIVING);
             history.setSourceId(link.getId());
             history.setValidFrom(order.getCreatedAt() == null ? now : order.getCreatedAt());
+            history.setCreatedBy(currentUser());
+            historyRepository.save(history);
+        }
+    }
+
+    @Transactional
+    public void createShippingHistory(ShippingOrder order) {
+        OffsetDateTime shippedAt = order.getCreatedAt() == null ? OffsetDateTime.now() : order.getCreatedAt();
+        for (ShippingOrderContainer link : order.getContainers()) {
+            ContainerOwnerHistory active = historyRepository
+                .findByContainerIdAndValidToIsNull(link.getContainer().getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Current owner was not found for container " + link.getContainer().getNumber()
+                ));
+
+            if (!active.getClient().getId().equals(order.getClient().getId())) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Container " + link.getContainer().getNumber() + " does not belong to the selected client"
+                );
+            }
+
+            active.setValidTo(shippedAt);
+            historyRepository.saveAndFlush(active);
+
+            ContainerOwnerHistory history = new ContainerOwnerHistory();
+            history.setContainer(link.getContainer());
+            history.setClient(order.getClient());
+            history.setOperationType(ContainerOwnerOperationType.SHIPPING);
+            history.setSourceId(link.getId());
+            history.setValidFrom(shippedAt);
+            history.setValidTo(shippedAt);
             history.setCreatedBy(currentUser());
             historyRepository.save(history);
         }
@@ -194,6 +230,7 @@ public class ContainerOwnerService {
         Long sourceOrderId = sourceOrderId(history);
         String sourceLabel = switch (history.getOperationType()) {
             case RECEIVING -> sourceNumber == null ? "Receiving" : "Receiving " + sourceNumber;
+            case SHIPPING -> sourceNumber == null ? "Shipping" : "Shipping " + sourceNumber;
             case OWNER_CHANGE -> sourceNumber == null ? "Owner change" : "Owner change " + sourceNumber;
         };
 
@@ -219,6 +256,12 @@ public class ContainerOwnerService {
                 .orElse(null);
         }
 
+        if (history.getOperationType() == ContainerOwnerOperationType.SHIPPING) {
+            return shippingOrderContainerRepository.findWithShippingOrderById(history.getSourceId())
+                .map(link -> link.getShippingOrder().getNumber())
+                .orElse(null);
+        }
+
         return changeOrderRepository.findById(history.getSourceId())
             .map(ContainerOwnerChangeOrder::getNumber)
             .orElse(null);
@@ -228,6 +271,12 @@ public class ContainerOwnerService {
         if (history.getOperationType() == ContainerOwnerOperationType.RECEIVING) {
             return receivingOrderContainerRepository.findWithReceivingOrderById(history.getSourceId())
                 .map(link -> link.getReceivingOrder().getId())
+                .orElse(null);
+        }
+
+        if (history.getOperationType() == ContainerOwnerOperationType.SHIPPING) {
+            return shippingOrderContainerRepository.findWithShippingOrderById(history.getSourceId())
+                .map(link -> link.getShippingOrder().getId())
                 .orElse(null);
         }
 

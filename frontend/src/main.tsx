@@ -1,13 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } from "@alabuga/uikit";
-import { ArrowLeft, Box, ChevronDown, FileText, Repeat2, Users } from "lucide-react";
+import { ArrowLeft, Box, ChevronDown, FileText, Repeat2, Truck, Users } from "lucide-react";
 import "./styles.css";
 
 type Page =
   | "receiving-list"
   | "receiving-create"
   | "receiving-details"
+  | "shipping-list"
+  | "shipping-create"
+  | "shipping-details"
   | "owner-list"
   | "owner-create"
   | "owner-details"
@@ -33,6 +36,8 @@ type ReceivingOrder = {
   containers: Container[];
 };
 
+type ShippingOrder = ReceivingOrder;
+
 type OwnerChangeOrder = {
   id: number;
   number: string;
@@ -49,14 +54,14 @@ type CurrentContainerOwner = {
   container: Container;
   client: Client;
   validFrom: string;
-  operationType: "RECEIVING" | "OWNER_CHANGE";
+  operationType: "RECEIVING" | "SHIPPING" | "OWNER_CHANGE";
   sourceId: number;
 };
 
 type ContainerOwnerHistory = {
   containerId: number;
   client: Client;
-  operationType: "RECEIVING" | "OWNER_CHANGE";
+  operationType: "RECEIVING" | "SHIPPING" | "OWNER_CHANGE";
   sourceId: number;
   sourceOrderId: number | null;
   sourceNumber: string | null;
@@ -72,6 +77,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 function App() {
   const [page, setPage] = React.useState<Page>("receiving-list");
   const [receivingOrders, setReceivingOrders] = React.useState<ReceivingOrder[]>([]);
+  const [shippingOrders, setShippingOrders] = React.useState<ShippingOrder[]>([]);
   const [ownerChangeOrders, setOwnerChangeOrders] = React.useState<OwnerChangeOrder[]>([]);
   const [currentOwners, setCurrentOwners] = React.useState<CurrentContainerOwner[]>([]);
   const [selectedOwnerContainer, setSelectedOwnerContainer] = React.useState<Container | null>(null);
@@ -79,9 +85,12 @@ function App() {
   const [containers, setContainers] = React.useState<Container[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
+  const [selectedShippingOrderId, setSelectedShippingOrderId] = React.useState<number | null>(null);
   const [selectedOwnerChangeOrderId, setSelectedOwnerChangeOrderId] = React.useState<number | null>(null);
   const [receivingClientId, setReceivingClientId] = React.useState("");
   const [receivingContainers, setReceivingContainers] = React.useState<string[]>([]);
+  const [shippingClientId, setShippingClientId] = React.useState("");
+  const [shippingContainers, setShippingContainers] = React.useState<string[]>([]);
   const [ownerClientId, setOwnerClientId] = React.useState("");
   const [ownerComment, setOwnerComment] = React.useState("");
   const [ownerContainers, setOwnerContainers] = React.useState<number[]>([]);
@@ -92,6 +101,7 @@ function App() {
   const [isLoading, setIsLoading] = React.useState(false);
 
   const selectedReceivingOrder = receivingOrders.find((order) => order.id === selectedReceivingOrderId) ?? null;
+  const selectedShippingOrder = shippingOrders.find((order) => order.id === selectedShippingOrderId) ?? null;
   const selectedOwnerChangeOrder = ownerChangeOrders.find((order) => order.id === selectedOwnerChangeOrderId) ?? null;
 
   const loadData = React.useCallback(async () => {
@@ -99,8 +109,9 @@ function App() {
     setError(null);
 
     try {
-      const [receivingResponse, ownerChangeResponse, currentOwnersResponse, containersResponse, clientsResponse] = await Promise.all([
+      const [receivingResponse, shippingResponse, ownerChangeResponse, currentOwnersResponse, containersResponse, clientsResponse] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
+        fetch(`${API_BASE}/shipping-orders`),
         fetch(`${API_BASE}/container-owner-change-orders`),
         fetch(`${API_BASE}/containers/owners/current`),
         fetch(`${API_BASE}/containers`),
@@ -109,6 +120,7 @@ function App() {
 
       if (
         !receivingResponse.ok ||
+        !shippingResponse.ok ||
         !ownerChangeResponse.ok ||
         !currentOwnersResponse.ok ||
         !containersResponse.ok ||
@@ -118,6 +130,7 @@ function App() {
       }
 
       setReceivingOrders(await receivingResponse.json());
+      setShippingOrders(await shippingResponse.json());
       setOwnerChangeOrders(await ownerChangeResponse.json());
       setCurrentOwners(await currentOwnersResponse.json());
       setContainers(await containersResponse.json());
@@ -209,6 +222,42 @@ function App() {
     setPage("owner-details");
   }
 
+  async function createShippingOrder(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!shippingClientId) {
+      setError("Выберите клиента");
+      return;
+    }
+
+    if (shippingContainers.length === 0) {
+      setError("Выберите хотя бы один КТК");
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/shipping-orders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId: Number(shippingClientId),
+        containerNumbers: shippingContainers,
+      }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось создать заявку на вывоз"));
+      return;
+    }
+
+    const createdOrder: ShippingOrder = await response.json();
+    setShippingClientId("");
+    setShippingContainers([]);
+    await loadData();
+    setSelectedShippingOrderId(createdOrder.id);
+    setPage("shipping-details");
+  }
+
   async function createContainer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -271,6 +320,12 @@ function App() {
       return;
     }
 
+    if (history.operationType === "SHIPPING") {
+      setSelectedShippingOrderId(history.sourceOrderId);
+      setPage("shipping-details");
+      return;
+    }
+
     setSelectedOwnerChangeOrderId(history.sourceOrderId);
     setPage("owner-details");
   }
@@ -305,6 +360,14 @@ function App() {
           >
             <Repeat2 size={18} />
             <span>Заявки на смену владельца КТК</span>
+          </button>
+          <button
+            className={page.startsWith("shipping") ? "active" : ""}
+            type="button"
+            onClick={() => setPage("shipping-list")}
+          >
+            <Truck size={18} />
+            <span>Заявки на вывоз</span>
           </button>
           <button
             className={page === "current-owners" || page === "container-owner-details" ? "active" : ""}
@@ -362,6 +425,39 @@ function App() {
             order={selectedReceivingOrder}
             onBack={() => setPage("receiving-list")}
             onCreate={() => setPage("receiving-create")}
+          />
+        )}
+
+        {page === "shipping-list" && (
+          <ShippingOrdersListPage
+            orders={shippingOrders}
+            isLoading={isLoading}
+            onCreate={() => setPage("shipping-create")}
+            onOpen={(order) => {
+              setSelectedShippingOrderId(order.id);
+              setPage("shipping-details");
+            }}
+          />
+        )}
+
+        {page === "shipping-create" && (
+          <CreateShippingOrderPage
+            clients={clients}
+            containers={containers}
+            clientId={shippingClientId}
+            selectedContainers={shippingContainers}
+            onBack={() => setPage("shipping-list")}
+            onSubmit={createShippingOrder}
+            onClientChange={setShippingClientId}
+            onContainersChange={setShippingContainers}
+          />
+        )}
+
+        {page === "shipping-details" && (
+          <ShippingOrderDetailsPage
+            order={selectedShippingOrder}
+            onBack={() => setPage("shipping-list")}
+            onCreate={() => setPage("shipping-create")}
           />
         )}
 
@@ -469,6 +565,44 @@ function ReceivingOrdersListPage({
   );
 }
 
+function ShippingOrdersListPage({
+  orders,
+  isLoading,
+  onCreate,
+  onOpen,
+}: {
+  orders: ShippingOrder[];
+  isLoading: boolean;
+  onCreate: () => void;
+  onOpen: (order: ShippingOrder) => void;
+}) {
+  return (
+    <>
+      <PageHead title="Заявки на вывоз">
+        <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
+          Создать
+        </BaseButton>
+      </PageHead>
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Номер заявки", "Клиент", "КТК", "Дата создания"]}>
+            {orders.map((order) => (
+              <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
+                <td>{order.number}</td>
+                <td>{order.client.name}</td>
+                <td>{order.containers.map((container) => container.number).join(", ")}</td>
+                <td>{formatDateTime(order.createdAt)}</td>
+              </tr>
+            ))}
+            {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
 function OwnerChangeOrdersListPage({
   orders,
   isLoading,
@@ -527,7 +661,7 @@ function CurrentOwnersPage({
               <tr className="clickable-row" key={owner.container.id} onClick={() => onOpen(owner.container)}>
                 <td>{owner.container.number}</td>
                 <td>{owner.client.name}</td>
-                <td>{owner.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
+                <td>{operationLabel(owner.operationType)}</td>
               </tr>
             ))}
             {owners.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Активных владельцев пока нет"} />}
@@ -617,11 +751,11 @@ function ContainerOwnerDetailsPage({
             {history.map((item) => (
               <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
                 <td>{item.client.name}</td>
-                <td>{item.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"}</td>
+                <td>{operationLabel(item.operationType)}</td>
                 <td>
                   {item.sourceOrderId ? (
                     <button className="table-link" type="button" onClick={() => onOpenSource(item)}>
-                      {item.operationType === "RECEIVING" ? "Поставка" : "Смена владельца"} №{item.sourceNumber ?? item.sourceOrderId}
+                      {operationLabel(item.operationType)} №{item.sourceNumber ?? item.sourceOrderId}
                     </button>
                   ) : (
                     "-"
@@ -660,6 +794,58 @@ function CreateReceivingOrderPage(props: {
   return (
     <>
       <PageHead title="Создание заявки на поставку">
+        <UikitBackButton onClick={props.onBack} />
+      </PageHead>
+
+      <div className="uikit-form-shell">
+        <PageCard>
+          <form className="uikit-form create-page-form" onSubmit={props.onSubmit}>
+            <h2>Данные заявки</h2>
+            <Select
+              label="Клиент"
+              placeholder=" "
+              value={props.clientId ? Number(props.clientId) : undefined}
+              options={props.clients.map((client) => ({ value: client.id, label: client.name }))}
+              onChange={(value) => props.onClientChange(value ? String(value) : "")}
+            />
+            <SelectMulti
+              label="КТК"
+              placeholder=" "
+              value={props.selectedContainers}
+              options={containerOptions}
+              selectAllLabel="Выбрать все КТК"
+              onChange={(value) => props.onContainersChange(value.map(String))}
+            />
+            <div className="uikit-form-actions">
+              <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
+                Сохранить
+              </BaseButton>
+            </div>
+          </form>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function CreateShippingOrderPage(props: {
+  clients: Client[];
+  containers: Container[];
+  clientId: string;
+  selectedContainers: string[];
+  onBack: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onClientChange: (value: string) => void;
+  onContainersChange: (value: string[]) => void;
+}) {
+  const containerOptions = props.containers.map((container) => ({
+    value: container.number,
+    label: container.number,
+  }));
+
+  return (
+    <>
+      <PageHead title="Создание заявки на вывоз">
         <UikitBackButton onClick={props.onBack} />
       </PageHead>
 
@@ -772,6 +958,48 @@ function ReceivingOrderDetailsPage({
   return (
     <>
       <PageHead title={`Заявка на поставку ${order.number}`}>
+        <div className="head-actions">
+          <UikitBackButton onClick={onBack} />
+          <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
+            Создать
+          </BaseButton>
+        </div>
+      </PageHead>
+
+      <div className="uikit-details-card">
+        <PageCard>
+          <section className="uikit-details">
+            <div className="detail-grid">
+              <DetailItem label="Номер заявки" value={order.number} />
+              <DetailItem label="Клиент" value={order.client.name} />
+              <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
+            </div>
+
+            <h2>КТК в заявке</h2>
+            <ContainerChips containers={order.containers} />
+          </section>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function ShippingOrderDetailsPage({
+  order,
+  onBack,
+  onCreate,
+}: {
+  order: ShippingOrder | null;
+  onBack: () => void;
+  onCreate: () => void;
+}) {
+  if (!order) {
+    return <NotSelected title="Заявка не выбрана" onBack={onBack} />;
+  }
+
+  return (
+    <>
+      <PageHead title={`Заявка на вывоз ${order.number}`}>
         <div className="head-actions">
           <UikitBackButton onClick={onBack} />
           <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
@@ -1024,6 +1252,17 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function operationLabel(operationType: ContainerOwnerHistory["operationType"]) {
+  switch (operationType) {
+    case "RECEIVING":
+      return "Поставка";
+    case "SHIPPING":
+      return "Вывоз";
+    case "OWNER_CHANGE":
+      return "Смена владельца";
+  }
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
