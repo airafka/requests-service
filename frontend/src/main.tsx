@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } from "@alabuga/uikit";
-import { ArrowLeft, Box, ChevronDown, FileText, Repeat2, Truck, Users } from "lucide-react";
+import { ArrowLeft, Box, ChevronDown, FileText, Repeat2, Truck } from "lucide-react";
 import "./styles.css";
 
 type Page =
@@ -14,7 +14,6 @@ type Page =
   | "owner-list"
   | "owner-create"
   | "owner-details"
-  | "current-owners"
   | "container-owner-details"
   | "containers-list";
 
@@ -50,14 +49,6 @@ type OwnerChangeOrder = {
   containers: Container[];
 };
 
-type CurrentContainerOwner = {
-  container: Container;
-  client: Client;
-  validFrom: string;
-  operationType: "RECEIVING" | "SHIPPING" | "OWNER_CHANGE";
-  sourceId: number;
-};
-
 type ContainerOwnerHistory = {
   containerId: number;
   client: Client;
@@ -79,7 +70,6 @@ function App() {
   const [receivingOrders, setReceivingOrders] = React.useState<ReceivingOrder[]>([]);
   const [shippingOrders, setShippingOrders] = React.useState<ShippingOrder[]>([]);
   const [ownerChangeOrders, setOwnerChangeOrders] = React.useState<OwnerChangeOrder[]>([]);
-  const [currentOwners, setCurrentOwners] = React.useState<CurrentContainerOwner[]>([]);
   const [selectedOwnerContainer, setSelectedOwnerContainer] = React.useState<Container | null>(null);
   const [selectedOwnerHistory, setSelectedOwnerHistory] = React.useState<ContainerOwnerHistory[]>([]);
   const [containers, setContainers] = React.useState<Container[]>([]);
@@ -109,11 +99,10 @@ function App() {
     setError(null);
 
     try {
-      const [receivingResponse, shippingResponse, ownerChangeResponse, currentOwnersResponse, containersResponse, clientsResponse] = await Promise.all([
+      const [receivingResponse, shippingResponse, ownerChangeResponse, containersResponse, clientsResponse] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
         fetch(`${API_BASE}/shipping-orders`),
         fetch(`${API_BASE}/container-owner-change-orders`),
-        fetch(`${API_BASE}/containers/owners/current`),
         fetch(`${API_BASE}/containers`),
         fetch(`${API_BASE}/clients`),
       ]);
@@ -122,7 +111,6 @@ function App() {
         !receivingResponse.ok ||
         !shippingResponse.ok ||
         !ownerChangeResponse.ok ||
-        !currentOwnersResponse.ok ||
         !containersResponse.ok ||
         !clientsResponse.ok
       ) {
@@ -132,7 +120,6 @@ function App() {
       setReceivingOrders(await receivingResponse.json());
       setShippingOrders(await shippingResponse.json());
       setOwnerChangeOrders(await ownerChangeResponse.json());
-      setCurrentOwners(await currentOwnersResponse.json());
       setContainers(await containersResponse.json());
       setClients(await clientsResponse.json());
     } catch (err) {
@@ -370,15 +357,7 @@ function App() {
             <span>Заявки на вывоз</span>
           </button>
           <button
-            className={page === "current-owners" || page === "container-owner-details" ? "active" : ""}
-            type="button"
-            onClick={() => setPage("current-owners")}
-          >
-            <Users size={18} />
-            <span>Владельцы КТК</span>
-          </button>
-          <button
-            className={page === "containers-list" ? "active" : ""}
+            className={page === "containers-list" || page === "container-owner-details" ? "active" : ""}
             type="button"
             onClick={() => setPage("containers-list")}
           >
@@ -500,15 +479,11 @@ function App() {
           />
         )}
 
-        {page === "current-owners" && (
-          <CurrentOwnersPage owners={currentOwners} isLoading={isLoading} onOpen={openContainerOwnerDetails} />
-        )}
-
         {page === "container-owner-details" && (
           <ContainerOwnerDetailsPage
             container={selectedOwnerContainer}
             history={selectedOwnerHistory}
-            onBack={() => setPage("current-owners")}
+            onBack={() => setPage("containers-list")}
             onOpenSource={openSource}
           />
         )}
@@ -520,6 +495,7 @@ function App() {
             number={newContainerNumber}
             onNumberChange={setNewContainerNumber}
             onSubmit={createContainer}
+            onOpen={openContainerOwnerDetails}
           />
         )}
       </section>
@@ -641,49 +617,20 @@ function OwnerChangeOrdersListPage({
   );
 }
 
-function CurrentOwnersPage({
-  owners,
-  isLoading,
-  onOpen,
-}: {
-  owners: CurrentContainerOwner[];
-  isLoading: boolean;
-  onOpen: (container: Container) => void;
-}) {
-  return (
-    <>
-      <PageHead title="Владельцы КТК" />
-
-      <div className="uikit-table-card">
-        <PageCard>
-          <OrdersTable columns={["КТК", "Клиент", "Операция"]}>
-            {owners.map((owner) => (
-              <tr className="clickable-row" key={owner.container.id} onClick={() => onOpen(owner.container)}>
-                <td>{owner.container.number}</td>
-                <td>{owner.client.name}</td>
-                <td>{operationLabel(owner.operationType)}</td>
-              </tr>
-            ))}
-            {owners.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Активных владельцев пока нет"} />}
-          </OrdersTable>
-        </PageCard>
-      </div>
-    </>
-  );
-}
-
 function ContainersPage({
   containers,
   isLoading,
   number,
   onNumberChange,
   onSubmit,
+  onOpen,
 }: {
   containers: Container[];
   isLoading: boolean;
   number: string;
   onNumberChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onOpen: (container: Container) => void;
 }) {
   return (
     <>
@@ -711,7 +658,7 @@ function ContainersPage({
           <PageCard>
             <OrdersTable columns={["Номер КТК"]}>
               {containers.map((container) => (
-                <tr key={container.id}>
+                <tr className="clickable-row" key={container.id} onClick={() => onOpen(container)}>
                   <td>{container.number}</td>
                 </tr>
               ))}
