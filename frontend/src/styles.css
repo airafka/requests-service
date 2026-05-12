@@ -291,14 +291,44 @@ h2 {
 }
 
 .delete-button {
-  border: 1px solid #fca5a5;
-  background: #fff5f5;
-  color: #b91c1c;
-  box-shadow: none;
+  background: #3472ed;
+  color: #ffffff;
 }
 
-.delete-button:hover {
-  background: #fee2e2;
+.link-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #3472ed;
+  font: inherit;
+  cursor: pointer;
+}
+
+.danger-link {
+  color: #b91c1c;
+}
+
+.complex-service-items {
+  display: grid;
+  gap: 12px;
+}
+
+.complex-service-items-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #191a1f;
+  font-weight: 600;
+}
+
+.complex-service-item {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #f2f4f7;
+  border-radius: 5px;
+  padding: 14px;
+  background: #ffffff;
 }
 
 .reference-layout {

@@ -1,7 +1,18 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } from "@alabuga/uikit";
-import { ArrowLeft, Box, ChevronDown, CircleDollarSign, FileText, ListChecks, PackageCheck, Repeat2, Truck } from "lucide-react";
+import {
+  ArrowLeft,
+  Box,
+  ChevronDown,
+  CircleDollarSign,
+  FileText,
+  Layers3,
+  ListChecks,
+  PackageCheck,
+  Repeat2,
+  Truck,
+} from "lucide-react";
 import "./styles.css";
 
 type Page =
@@ -25,7 +36,10 @@ type Page =
   | "services-edit"
   | "tariffs-list"
   | "tariffs-create"
-  | "tariffs-edit";
+  | "tariffs-edit"
+  | "complex-services-list"
+  | "complex-services-create"
+  | "complex-services-edit";
 
 type Client = {
   id: number;
@@ -95,6 +109,25 @@ type BillingTariff = {
   cost: number;
 };
 
+type ComplexServiceItem = {
+  id: number;
+  service: BillingService;
+  operationCount: number | null;
+  durationDays: number | null;
+};
+
+type ComplexService = {
+  id: number;
+  name: string;
+  items: ComplexServiceItem[];
+};
+
+type ComplexServiceFormItem = {
+  serviceId: string;
+  operationCount: string;
+  durationDays: string;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 function App() {
@@ -109,12 +142,14 @@ function App() {
   const [billingOperations, setBillingOperations] = React.useState<BillingOperation[]>([]);
   const [billingServices, setBillingServices] = React.useState<BillingService[]>([]);
   const [billingTariffs, setBillingTariffs] = React.useState<BillingTariff[]>([]);
+  const [complexServices, setComplexServices] = React.useState<ComplexService[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
   const [selectedShippingOrderId, setSelectedShippingOrderId] = React.useState<number | null>(null);
   const [selectedOwnerChangeOrderId, setSelectedOwnerChangeOrderId] = React.useState<number | null>(null);
   const [selectedOperationId, setSelectedOperationId] = React.useState<number | null>(null);
   const [selectedServiceId, setSelectedServiceId] = React.useState<number | null>(null);
   const [selectedTariffId, setSelectedTariffId] = React.useState<number | null>(null);
+  const [selectedComplexServiceId, setSelectedComplexServiceId] = React.useState<number | null>(null);
   const [receivingClientId, setReceivingClientId] = React.useState("");
   const [receivingContainers, setReceivingContainers] = React.useState<string[]>([]);
   const [shippingClientId, setShippingClientId] = React.useState("");
@@ -131,6 +166,8 @@ function App() {
   const [newTariffName, setNewTariffName] = React.useState("");
   const [newTariffServiceIds, setNewTariffServiceIds] = React.useState<number[]>([]);
   const [newTariffCost, setNewTariffCost] = React.useState("");
+  const [newComplexServiceName, setNewComplexServiceName] = React.useState("");
+  const [newComplexServiceItems, setNewComplexServiceItems] = React.useState<ComplexServiceFormItem[]>([]);
   const [isReceivingDropdownOpen, setIsReceivingDropdownOpen] = React.useState(false);
   const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -142,6 +179,8 @@ function App() {
   const selectedOperation = billingOperations.find((operation) => operation.id === selectedOperationId) ?? null;
   const selectedService = billingServices.find((service) => service.id === selectedServiceId) ?? null;
   const selectedTariff = billingTariffs.find((tariff) => tariff.id === selectedTariffId) ?? null;
+  const selectedComplexService =
+    complexServices.find((complexService) => complexService.id === selectedComplexServiceId) ?? null;
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
@@ -157,6 +196,7 @@ function App() {
         operationsResponse,
         servicesResponse,
         tariffsResponse,
+        complexServicesResponse,
       ] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
         fetch(`${API_BASE}/shipping-orders`),
@@ -166,6 +206,7 @@ function App() {
         fetch(`${API_BASE}/operations`),
         fetch(`${API_BASE}/services`),
         fetch(`${API_BASE}/tariffs`),
+        fetch(`${API_BASE}/complex-services`),
       ]);
 
       if (
@@ -176,7 +217,8 @@ function App() {
         !clientsResponse.ok ||
         !operationsResponse.ok ||
         !servicesResponse.ok ||
-        !tariffsResponse.ok
+        !tariffsResponse.ok ||
+        !complexServicesResponse.ok
       ) {
         throw new Error("Не удалось загрузить данные");
       }
@@ -189,6 +231,7 @@ function App() {
       setBillingOperations(await operationsResponse.json());
       setBillingServices(await servicesResponse.json());
       setBillingTariffs(await tariffsResponse.json());
+      setComplexServices(await complexServicesResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неизвестная ошибка");
     } finally {
@@ -633,6 +676,81 @@ function App() {
     setPage("tariffs-list");
   }
 
+  async function createComplexService(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    const payload = complexServicePayload();
+    if (!payload) {
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/complex-services`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось создать комплексную услугу"));
+      return;
+    }
+
+    resetComplexServiceForm();
+    await loadData();
+    setPage("complex-services-list");
+  }
+
+  async function updateComplexService(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!selectedComplexService) {
+      setError("Комплексная услуга не выбрана");
+      return;
+    }
+
+    const payload = complexServicePayload();
+    if (!payload) {
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/complex-services/${selectedComplexService.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось обновить комплексную услугу"));
+      return;
+    }
+
+    resetComplexServiceForm();
+    await loadData();
+    setPage("complex-services-list");
+  }
+
+  async function deleteComplexService() {
+    if (!selectedComplexService) {
+      return;
+    }
+
+    setError(null);
+    const response = await fetch(`${API_BASE}/complex-services/${selectedComplexService.id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось удалить комплексную услугу"));
+      return;
+    }
+
+    resetComplexServiceForm();
+    await loadData();
+    setPage("complex-services-list");
+  }
+
   function serviceDurationDays() {
     if (newServiceType !== "CONTINUOUS") {
       return null;
@@ -660,6 +778,67 @@ function App() {
     setNewTariffName("");
     setNewTariffServiceIds([]);
     setNewTariffCost("");
+  }
+
+  function resetComplexServiceForm() {
+    setSelectedComplexServiceId(null);
+    setNewComplexServiceName("");
+    setNewComplexServiceItems([]);
+  }
+
+  function complexServicePayload() {
+    if (!newComplexServiceName.trim()) {
+      setError("Введите наименование комплексной услуги");
+      return null;
+    }
+
+    if (newComplexServiceItems.length === 0) {
+      setError("Добавьте хотя бы одну услугу");
+      return null;
+    }
+
+    const usedServiceIds = new Set<string>();
+    const items = [];
+
+    for (const item of newComplexServiceItems) {
+      if (!item.serviceId) {
+        setError("Выберите услугу во всех строках");
+        return null;
+      }
+
+      if (usedServiceIds.has(item.serviceId)) {
+        setError("Услугу нельзя добавить дважды");
+        return null;
+      }
+      usedServiceIds.add(item.serviceId);
+
+      const service = billingServices.find((billingService) => billingService.id === Number(item.serviceId));
+      if (!service) {
+        setError("Выбрана неизвестная услуга");
+        return null;
+      }
+
+      if (service.serviceType === "ONE_TIME") {
+        const operationCount = Number(item.operationCount);
+        if (!Number.isInteger(operationCount) || operationCount <= 0) {
+          setError("Введите корректное количество операций");
+          return null;
+        }
+        items.push({ serviceId: service.id, operationCount, durationDays: null });
+      } else {
+        const durationDays = Number(item.durationDays);
+        if (!Number.isInteger(durationDays) || durationDays <= 0) {
+          setError("Введите корректное количество дней");
+          return null;
+        }
+        items.push({ serviceId: service.id, operationCount: null, durationDays });
+      }
+    }
+
+    return {
+      name: newComplexServiceName.trim(),
+      items,
+    };
   }
 
   function toggleReceivingContainer(number: string) {
@@ -732,6 +911,19 @@ function App() {
     setPage("tariffs-edit");
   }
 
+  function openComplexService(complexService: ComplexService) {
+    setSelectedComplexServiceId(complexService.id);
+    setNewComplexServiceName(complexService.name);
+    setNewComplexServiceItems(
+      complexService.items.map((item) => ({
+        serviceId: String(item.service.id),
+        operationCount: item.operationCount ? String(item.operationCount) : "",
+        durationDays: item.durationDays ? String(item.durationDays) : "",
+      })),
+    );
+    setPage("complex-services-edit");
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -802,6 +994,14 @@ function App() {
           >
             <CircleDollarSign size={18} />
             <span>Тарифы</span>
+          </button>
+          <button
+            className={page.startsWith("complex-services") ? "active" : ""}
+            type="button"
+            onClick={() => setPage("complex-services-list")}
+          >
+            <Layers3 size={18} />
+            <span>Комплексные услуги</span>
           </button>
         </nav>
       </aside>
@@ -1066,6 +1266,45 @@ function App() {
             onCostChange={setNewTariffCost}
             onSubmit={updateBillingTariff}
             onDelete={deleteBillingTariff}
+          />
+        )}
+
+        {page === "complex-services-list" && (
+          <ComplexServicesPage
+            complexServices={complexServices}
+            isLoading={isLoading}
+            onCreate={() => {
+              resetComplexServiceForm();
+              setPage("complex-services-create");
+            }}
+            onOpen={openComplexService}
+          />
+        )}
+
+        {page === "complex-services-create" && (
+          <CreateComplexServicePage
+            title="Создание комплексной услуги"
+            services={billingServices}
+            name={newComplexServiceName}
+            items={newComplexServiceItems}
+            onBack={() => setPage("complex-services-list")}
+            onNameChange={setNewComplexServiceName}
+            onItemsChange={setNewComplexServiceItems}
+            onSubmit={createComplexService}
+          />
+        )}
+
+        {page === "complex-services-edit" && (
+          <CreateComplexServicePage
+            title="Редактирование комплексной услуги"
+            services={billingServices}
+            name={newComplexServiceName}
+            items={newComplexServiceItems}
+            onBack={() => setPage("complex-services-list")}
+            onNameChange={setNewComplexServiceName}
+            onItemsChange={setNewComplexServiceItems}
+            onSubmit={updateComplexService}
+            onDelete={deleteComplexService}
           />
         )}
       </section>
@@ -1573,6 +1812,179 @@ function CreateTariffPage({
               Стоимость
               <input inputMode="decimal" value={cost} onChange={(event) => onCostChange(event.target.value)} />
             </label>
+            <div className="uikit-form-actions">
+              <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
+                Сохранить
+              </BaseButton>
+              {onDelete && (
+                <button className="design-button delete-button" type="button" onClick={onDelete}>
+                  Удалить
+                </button>
+              )}
+            </div>
+          </form>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function ComplexServicesPage({
+  complexServices,
+  isLoading,
+  onCreate,
+  onOpen,
+}: {
+  complexServices: ComplexService[];
+  isLoading: boolean;
+  onCreate: () => void;
+  onOpen: (complexService: ComplexService) => void;
+}) {
+  return (
+    <>
+      <PageHead title="Комплексные услуги">
+        <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
+          Создать
+        </BaseButton>
+      </PageHead>
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Наименование", "Услуги"]}>
+            {complexServices.map((complexService) => (
+              <tr className="clickable-row" key={complexService.id} onClick={() => onOpen(complexService)}>
+                <td>{complexService.name}</td>
+                <td>
+                  {complexService.items
+                    .map((item) => `${item.service.name} (${complexServiceItemValue(item)})`)
+                    .join(", ")}
+                </td>
+              </tr>
+            ))}
+            {complexServices.length === 0 && (
+              <EmptyRow colSpan={2} text={isLoading ? "Загрузка..." : "Комплексных услуг пока нет"} />
+            )}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function CreateComplexServicePage({
+  title,
+  services,
+  name,
+  items,
+  onBack,
+  onNameChange,
+  onItemsChange,
+  onSubmit,
+  onDelete,
+}: {
+  title: string;
+  services: BillingService[];
+  name: string;
+  items: ComplexServiceFormItem[];
+  onBack: () => void;
+  onNameChange: (value: string) => void;
+  onItemsChange: (value: ComplexServiceFormItem[]) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onDelete?: () => void;
+}) {
+  const serviceOptions = services.map((service) => ({
+    value: String(service.id),
+    label: service.name,
+  }));
+
+  function addItem() {
+    onItemsChange([...items, { serviceId: "", operationCount: "", durationDays: "" }]);
+  }
+
+  function updateItem(index: number, patch: Partial<ComplexServiceFormItem>) {
+    onItemsChange(items.map((item, currentIndex) => (currentIndex === index ? { ...item, ...patch } : item)));
+  }
+
+  function removeItem(index: number) {
+    onItemsChange(items.filter((_, currentIndex) => currentIndex !== index));
+  }
+
+  return (
+    <>
+      <PageHead title={title}>
+        <UikitBackButton onClick={onBack} />
+      </PageHead>
+
+      <div className="uikit-form-shell">
+        <PageCard>
+          <form className="uikit-form create-page-form" onSubmit={onSubmit}>
+            <h2>Данные комплексной услуги</h2>
+            <label>
+              Наименование
+              <input value={name} onChange={(event) => onNameChange(event.target.value)} maxLength={180} />
+            </label>
+
+            <div className="complex-service-items">
+              <div className="complex-service-items-head">
+                <span>Услуги</span>
+                <button className="link-button" type="button" onClick={addItem}>
+                  Добавить услугу
+                </button>
+              </div>
+
+              {items.map((item, index) => {
+                const selectedService = services.find((service) => service.id === Number(item.serviceId)) ?? null;
+
+                return (
+                  <div className="complex-service-item" key={`${item.serviceId}-${index}`}>
+                    <Select
+                      label="Услуга"
+                      placeholder=" "
+                      value={item.serviceId || undefined}
+                      options={serviceOptions}
+                      onChange={(value) =>
+                        updateItem(index, {
+                          serviceId: value ? String(value) : "",
+                          operationCount: "",
+                          durationDays: "",
+                        })
+                      }
+                    />
+
+                    {selectedService?.serviceType === "ONE_TIME" && (
+                      <label>
+                        Количество операций
+                        <input
+                          inputMode="numeric"
+                          min={1}
+                          value={item.operationCount}
+                          onChange={(event) => updateItem(index, { operationCount: event.target.value })}
+                        />
+                      </label>
+                    )}
+
+                    {selectedService?.serviceType === "CONTINUOUS" && (
+                      <label>
+                        Количество дней
+                        <input
+                          inputMode="numeric"
+                          min={1}
+                          value={item.durationDays}
+                          onChange={(event) => updateItem(index, { durationDays: event.target.value })}
+                        />
+                      </label>
+                    )}
+
+                    <button className="link-button danger-link" type="button" onClick={() => removeItem(index)}>
+                      Удалить строку
+                    </button>
+                  </div>
+                );
+              })}
+
+              {items.length === 0 && <p className="muted">Добавьте услуги, входящие в комплекс.</p>}
+            </div>
+
             <div className="uikit-form-actions">
               <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
                 Сохранить
@@ -2138,6 +2550,14 @@ function serviceTypeLabel(serviceType: BillingServiceType) {
     case "CONTINUOUS":
       return "Продолжительная";
   }
+}
+
+function complexServiceItemValue(item: ComplexServiceItem) {
+  if (item.service.serviceType === "ONE_TIME") {
+    return `${item.operationCount ?? 0} оп.`;
+  }
+
+  return `${item.durationDays ?? 0} дн.`;
 }
 
 function formatMoney(value: number) {
