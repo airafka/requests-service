@@ -292,7 +292,8 @@ h2 {
 
 .delete-button {
   min-width: 0;
-  width: 128px;
+  width: auto;
+  padding: 0 22px;
   background: #dc2626;
   color: #ffffff;
 }
@@ -320,7 +321,11 @@ h2 {
 }
 
 .complex-service-form {
-  width: min(960px, 100%);
+  width: 100%;
+}
+
+.complex-service-shell {
+  width: min(1080px, 100%);
 }
 
 .complex-service-items-head {
@@ -333,11 +338,20 @@ h2 {
 }
 
 .complex-service-table {
-  min-width: 820px;
+  min-width: 0;
 }
 
-.complex-service-table th {
-  width: 25%;
+.complex-service-table th:first-child {
+  width: 36%;
+}
+
+.complex-service-table th:nth-child(2),
+.complex-service-table th:nth-child(3) {
+  width: 24%;
+}
+
+.complex-service-table th:last-child {
+  width: 16%;
 }
 
 .complex-service-table td {

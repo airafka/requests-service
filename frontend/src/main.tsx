@@ -1915,7 +1915,7 @@ function CreateComplexServicePage({
         <UikitBackButton onClick={onBack} />
       </PageHead>
 
-      <div className="uikit-form-shell">
+      <div className="uikit-form-shell complex-service-shell">
         <PageCard>
           <form className="uikit-form create-page-form complex-service-form" onSubmit={onSubmit}>
             <h2>Данные комплексной услуги</h2>
