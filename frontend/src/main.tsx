@@ -1056,6 +1056,12 @@ function CreateServicePage({
   onOperationsChange: (value: number[]) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
+  const selectedOperationValues = selectedOperations.map(String);
+  const operationOptions = operations.map((operation) => ({
+    value: String(operation.id),
+    label: operation.name,
+  }));
+
   return (
     <>
       <PageHead title="Создание услуги">
@@ -1083,8 +1089,8 @@ function CreateServicePage({
             <SelectMulti
               label="Операции"
               placeholder=" "
-              value={selectedOperations}
-              options={operations.map((operation) => ({ value: operation.id, label: operation.name }))}
+              value={selectedOperationValues}
+              options={operationOptions}
               selectAllLabel="Выбрать все операции"
               onChange={(value) => onOperationsChange(value.map(Number))}
             />
@@ -1156,6 +1162,12 @@ function CreateTariffPage({
   onCostChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
+  const selectedServiceValues = selectedServices.map(String);
+  const serviceOptions = services.map((service) => ({
+    value: String(service.id),
+    label: service.name,
+  }));
+
   return (
     <>
       <PageHead title="Создание тарифа">
@@ -1173,8 +1185,8 @@ function CreateTariffPage({
             <SelectMulti
               label="Услуги"
               placeholder=" "
-              value={selectedServices}
-              options={services.map((service) => ({ value: service.id, label: service.name }))}
+              value={selectedServiceValues}
+              options={serviceOptions}
               selectAllLabel="Выбрать все услуги"
               onChange={(value) => onServicesChange(value.map(Number))}
             />
