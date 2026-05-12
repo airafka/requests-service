@@ -291,6 +291,7 @@ h2 {
 }
 
 .delete-button {
+  height: 38px;
   min-width: 0;
   width: 144px;
   padding: 0 16px;
