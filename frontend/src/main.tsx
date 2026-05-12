@@ -19,10 +19,13 @@ type Page =
   | "containers-create"
   | "operations-list"
   | "operations-create"
+  | "operations-edit"
   | "services-list"
   | "services-create"
+  | "services-edit"
   | "tariffs-list"
-  | "tariffs-create";
+  | "tariffs-create"
+  | "tariffs-edit";
 
 type Client = {
   id: number;
@@ -81,6 +84,7 @@ type BillingService = {
   id: number;
   name: string;
   serviceType: BillingServiceType;
+  durationDays: number | null;
   operations: BillingOperation[];
 };
 
@@ -108,6 +112,9 @@ function App() {
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
   const [selectedShippingOrderId, setSelectedShippingOrderId] = React.useState<number | null>(null);
   const [selectedOwnerChangeOrderId, setSelectedOwnerChangeOrderId] = React.useState<number | null>(null);
+  const [selectedOperationId, setSelectedOperationId] = React.useState<number | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = React.useState<number | null>(null);
+  const [selectedTariffId, setSelectedTariffId] = React.useState<number | null>(null);
   const [receivingClientId, setReceivingClientId] = React.useState("");
   const [receivingContainers, setReceivingContainers] = React.useState<string[]>([]);
   const [shippingClientId, setShippingClientId] = React.useState("");
@@ -119,6 +126,7 @@ function App() {
   const [newOperationName, setNewOperationName] = React.useState("");
   const [newServiceName, setNewServiceName] = React.useState("");
   const [newServiceType, setNewServiceType] = React.useState<BillingServiceType>("ONE_TIME");
+  const [newServiceDurationDays, setNewServiceDurationDays] = React.useState("");
   const [newServiceOperationIds, setNewServiceOperationIds] = React.useState<number[]>([]);
   const [newTariffName, setNewTariffName] = React.useState("");
   const [newTariffServiceIds, setNewTariffServiceIds] = React.useState<number[]>([]);
@@ -131,6 +139,9 @@ function App() {
   const selectedReceivingOrder = receivingOrders.find((order) => order.id === selectedReceivingOrderId) ?? null;
   const selectedShippingOrder = shippingOrders.find((order) => order.id === selectedShippingOrderId) ?? null;
   const selectedOwnerChangeOrder = ownerChangeOrders.find((order) => order.id === selectedOwnerChangeOrderId) ?? null;
+  const selectedOperation = billingOperations.find((operation) => operation.id === selectedOperationId) ?? null;
+  const selectedService = billingServices.find((service) => service.id === selectedServiceId) ?? null;
+  const selectedTariff = billingTariffs.find((tariff) => tariff.id === selectedTariffId) ?? null;
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
@@ -351,6 +362,58 @@ function App() {
     setPage("operations-list");
   }
 
+  async function updateBillingOperation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!selectedOperation) {
+      setError("Операция не выбрана");
+      return;
+    }
+
+    if (!newOperationName.trim()) {
+      setError("Введите наименование операции");
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/operations/${selectedOperation.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newOperationName.trim() }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось обновить операцию"));
+      return;
+    }
+
+    setSelectedOperationId(null);
+    setNewOperationName("");
+    await loadData();
+    setPage("operations-list");
+  }
+
+  async function deleteBillingOperation() {
+    if (!selectedOperation) {
+      return;
+    }
+
+    setError(null);
+    const response = await fetch(`${API_BASE}/operations/${selectedOperation.id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось удалить операцию"));
+      return;
+    }
+
+    setSelectedOperationId(null);
+    setNewOperationName("");
+    await loadData();
+    setPage("operations-list");
+  }
+
   async function createBillingService(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -365,12 +428,18 @@ function App() {
       return;
     }
 
+    const durationDays = serviceDurationDays();
+    if (durationDays === undefined) {
+      return;
+    }
+
     const response = await fetch(`${API_BASE}/services`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: newServiceName.trim(),
         serviceType: newServiceType,
+        durationDays,
         operationIds: newServiceOperationIds,
       }),
     });
@@ -382,7 +451,73 @@ function App() {
 
     setNewServiceName("");
     setNewServiceType("ONE_TIME");
+    setNewServiceDurationDays("");
     setNewServiceOperationIds([]);
+    await loadData();
+    setPage("services-list");
+  }
+
+  async function updateBillingService(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!selectedService) {
+      setError("Услуга не выбрана");
+      return;
+    }
+
+    if (!newServiceName.trim()) {
+      setError("Введите наименование услуги");
+      return;
+    }
+
+    if (newServiceOperationIds.length === 0) {
+      setError("Выберите хотя бы одну операцию");
+      return;
+    }
+
+    const durationDays = serviceDurationDays();
+    if (durationDays === undefined) {
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/services/${selectedService.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: newServiceName.trim(),
+        serviceType: newServiceType,
+        durationDays,
+        operationIds: newServiceOperationIds,
+      }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось обновить услугу"));
+      return;
+    }
+
+    resetServiceForm();
+    await loadData();
+    setPage("services-list");
+  }
+
+  async function deleteBillingService() {
+    if (!selectedService) {
+      return;
+    }
+
+    setError(null);
+    const response = await fetch(`${API_BASE}/services/${selectedService.id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось удалить услугу"));
+      return;
+    }
+
+    resetServiceForm();
     await loadData();
     setPage("services-list");
   }
@@ -431,6 +566,102 @@ function App() {
     setPage("tariffs-list");
   }
 
+  async function updateBillingTariff(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!selectedTariff) {
+      setError("Тариф не выбран");
+      return;
+    }
+
+    const normalizedCost = newTariffCost.replace(",", ".");
+    const cost = Number(normalizedCost);
+
+    if (!newTariffName.trim()) {
+      setError("Введите наименование тарифа");
+      return;
+    }
+
+    if (newTariffServiceIds.length === 0) {
+      setError("Выберите хотя бы одну услугу");
+      return;
+    }
+
+    if (!Number.isFinite(cost) || cost < 0) {
+      setError("Введите корректную стоимость");
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/tariffs/${selectedTariff.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: newTariffName.trim(),
+        serviceIds: newTariffServiceIds,
+        cost,
+      }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось обновить тариф"));
+      return;
+    }
+
+    resetTariffForm();
+    await loadData();
+    setPage("tariffs-list");
+  }
+
+  async function deleteBillingTariff() {
+    if (!selectedTariff) {
+      return;
+    }
+
+    setError(null);
+    const response = await fetch(`${API_BASE}/tariffs/${selectedTariff.id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось удалить тариф"));
+      return;
+    }
+
+    resetTariffForm();
+    await loadData();
+    setPage("tariffs-list");
+  }
+
+  function serviceDurationDays() {
+    if (newServiceType !== "CONTINUOUS") {
+      return null;
+    }
+
+    const durationDays = Number(newServiceDurationDays);
+    if (!Number.isInteger(durationDays) || durationDays <= 0) {
+      setError("Введите корректное количество дней");
+      return undefined;
+    }
+
+    return durationDays;
+  }
+
+  function resetServiceForm() {
+    setSelectedServiceId(null);
+    setNewServiceName("");
+    setNewServiceType("ONE_TIME");
+    setNewServiceDurationDays("");
+    setNewServiceOperationIds([]);
+  }
+
+  function resetTariffForm() {
+    setSelectedTariffId(null);
+    setNewTariffName("");
+    setNewTariffServiceIds([]);
+    setNewTariffCost("");
+  }
+
   function toggleReceivingContainer(number: string) {
     setReceivingContainers((current) =>
       current.includes(number) ? current.filter((item) => item !== number) : [...current, number],
@@ -476,6 +707,29 @@ function App() {
 
     setSelectedOwnerChangeOrderId(history.sourceOrderId);
     setPage("owner-details");
+  }
+
+  function openOperation(operation: BillingOperation) {
+    setSelectedOperationId(operation.id);
+    setNewOperationName(operation.name);
+    setPage("operations-edit");
+  }
+
+  function openService(service: BillingService) {
+    setSelectedServiceId(service.id);
+    setNewServiceName(service.name);
+    setNewServiceType(service.serviceType);
+    setNewServiceDurationDays(service.durationDays ? String(service.durationDays) : "");
+    setNewServiceOperationIds(service.operations.map((operation) => operation.id));
+    setPage("services-edit");
+  }
+
+  function openTariff(tariff: BillingTariff) {
+    setSelectedTariffId(tariff.id);
+    setNewTariffName(tariff.name);
+    setNewTariffServiceIds(tariff.services.map((service) => service.id));
+    setNewTariffCost(String(tariff.cost));
+    setPage("tariffs-edit");
   }
 
   return (
@@ -692,11 +946,21 @@ function App() {
         )}
 
         {page === "operations-list" && (
-          <OperationsPage operations={billingOperations} isLoading={isLoading} onCreate={() => setPage("operations-create")} />
+          <OperationsPage
+            operations={billingOperations}
+            isLoading={isLoading}
+            onCreate={() => {
+              setSelectedOperationId(null);
+              setNewOperationName("");
+              setPage("operations-create");
+            }}
+            onOpen={openOperation}
+          />
         )}
 
         {page === "operations-create" && (
           <CreateOperationPage
+            title="Создание операции"
             name={newOperationName}
             onBack={() => setPage("operations-list")}
             onNameChange={setNewOperationName}
@@ -704,30 +968,79 @@ function App() {
           />
         )}
 
+        {page === "operations-edit" && (
+          <CreateOperationPage
+            title="Редактирование операции"
+            name={newOperationName}
+            onBack={() => setPage("operations-list")}
+            onNameChange={setNewOperationName}
+            onSubmit={updateBillingOperation}
+            onDelete={deleteBillingOperation}
+          />
+        )}
+
         {page === "services-list" && (
-          <ServicesPage services={billingServices} isLoading={isLoading} onCreate={() => setPage("services-create")} />
+          <ServicesPage
+            services={billingServices}
+            isLoading={isLoading}
+            onCreate={() => {
+              resetServiceForm();
+              setPage("services-create");
+            }}
+            onOpen={openService}
+          />
         )}
 
         {page === "services-create" && (
           <CreateServicePage
+            title="Создание услуги"
             operations={billingOperations}
             name={newServiceName}
             serviceType={newServiceType}
+            durationDays={newServiceDurationDays}
             selectedOperations={newServiceOperationIds}
             onBack={() => setPage("services-list")}
             onNameChange={setNewServiceName}
             onServiceTypeChange={setNewServiceType}
+            onDurationDaysChange={setNewServiceDurationDays}
             onOperationsChange={setNewServiceOperationIds}
             onSubmit={createBillingService}
           />
         )}
 
+        {page === "services-edit" && (
+          <CreateServicePage
+            title="Редактирование услуги"
+            operations={billingOperations}
+            name={newServiceName}
+            serviceType={newServiceType}
+            durationDays={newServiceDurationDays}
+            selectedOperations={newServiceOperationIds}
+            onBack={() => setPage("services-list")}
+            onNameChange={setNewServiceName}
+            onServiceTypeChange={setNewServiceType}
+            onDurationDaysChange={setNewServiceDurationDays}
+            onOperationsChange={setNewServiceOperationIds}
+            onSubmit={updateBillingService}
+            onDelete={deleteBillingService}
+          />
+        )}
+
         {page === "tariffs-list" && (
-          <TariffsPage tariffs={billingTariffs} isLoading={isLoading} onCreate={() => setPage("tariffs-create")} />
+          <TariffsPage
+            tariffs={billingTariffs}
+            isLoading={isLoading}
+            onCreate={() => {
+              resetTariffForm();
+              setPage("tariffs-create");
+            }}
+            onOpen={openTariff}
+          />
         )}
 
         {page === "tariffs-create" && (
           <CreateTariffPage
+            title="Создание тарифа"
             services={billingServices}
             name={newTariffName}
             selectedServices={newTariffServiceIds}
@@ -737,6 +1050,22 @@ function App() {
             onServicesChange={setNewTariffServiceIds}
             onCostChange={setNewTariffCost}
             onSubmit={createBillingTariff}
+          />
+        )}
+
+        {page === "tariffs-edit" && (
+          <CreateTariffPage
+            title="Редактирование тарифа"
+            services={billingServices}
+            name={newTariffName}
+            selectedServices={newTariffServiceIds}
+            cost={newTariffCost}
+            onBack={() => setPage("tariffs-list")}
+            onNameChange={setNewTariffName}
+            onServicesChange={setNewTariffServiceIds}
+            onCostChange={setNewTariffCost}
+            onSubmit={updateBillingTariff}
+            onDelete={deleteBillingTariff}
           />
         )}
       </section>
@@ -934,10 +1263,12 @@ function OperationsPage({
   operations,
   isLoading,
   onCreate,
+  onOpen,
 }: {
   operations: BillingOperation[];
   isLoading: boolean;
   onCreate: () => void;
+  onOpen: (operation: BillingOperation) => void;
 }) {
   return (
     <>
@@ -951,7 +1282,7 @@ function OperationsPage({
         <PageCard>
           <OrdersTable columns={["Наименование"]}>
             {operations.map((operation) => (
-              <tr key={operation.id}>
+              <tr className="clickable-row" key={operation.id} onClick={() => onOpen(operation)}>
                 <td>{operation.name}</td>
               </tr>
             ))}
@@ -964,19 +1295,23 @@ function OperationsPage({
 }
 
 function CreateOperationPage({
+  title = "Создание операции",
   name,
   onBack,
   onNameChange,
   onSubmit,
+  onDelete,
 }: {
+  title?: string;
   name: string;
   onBack: () => void;
   onNameChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onDelete?: () => void;
 }) {
   return (
     <>
-      <PageHead title="Создание операции">
+      <PageHead title={title}>
         <UikitBackButton onClick={onBack} />
       </PageHead>
 
@@ -992,6 +1327,11 @@ function CreateOperationPage({
               <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
                 Сохранить
               </BaseButton>
+              {onDelete && (
+                <button className="design-button delete-button" type="button" onClick={onDelete}>
+                  Удалить
+                </button>
+              )}
             </div>
           </form>
         </PageCard>
@@ -1004,10 +1344,12 @@ function ServicesPage({
   services,
   isLoading,
   onCreate,
+  onOpen,
 }: {
   services: BillingService[];
   isLoading: boolean;
   onCreate: () => void;
+  onOpen: (service: BillingService) => void;
 }) {
   return (
     <>
@@ -1019,15 +1361,16 @@ function ServicesPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Наименование", "Признак", "Операции"]}>
+          <OrdersTable columns={["Наименование", "Признак", "Количество дней", "Операции"]}>
             {services.map((service) => (
-              <tr key={service.id}>
+              <tr className="clickable-row" key={service.id} onClick={() => onOpen(service)}>
                 <td>{service.name}</td>
                 <td>{serviceTypeLabel(service.serviceType)}</td>
+                <td>{service.durationDays ?? "-"}</td>
                 <td>{service.operations.map((operation) => operation.name).join(", ")}</td>
               </tr>
             ))}
-            {services.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Услуг пока нет"} />}
+            {services.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Услуг пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -1036,25 +1379,33 @@ function ServicesPage({
 }
 
 function CreateServicePage({
+  title = "Создание услуги",
   operations,
   name,
   serviceType,
+  durationDays,
   selectedOperations,
   onBack,
   onNameChange,
   onServiceTypeChange,
+  onDurationDaysChange,
   onOperationsChange,
   onSubmit,
+  onDelete,
 }: {
+  title?: string;
   operations: BillingOperation[];
   name: string;
   serviceType: BillingServiceType;
+  durationDays: string;
   selectedOperations: number[];
   onBack: () => void;
   onNameChange: (value: string) => void;
   onServiceTypeChange: (value: BillingServiceType) => void;
+  onDurationDaysChange: (value: string) => void;
   onOperationsChange: (value: number[]) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onDelete?: () => void;
 }) {
   const selectedOperationValues = selectedOperations.map(String);
   const operationOptions = operations.map((operation) => ({
@@ -1064,7 +1415,7 @@ function CreateServicePage({
 
   return (
     <>
-      <PageHead title="Создание услуги">
+      <PageHead title={title}>
         <UikitBackButton onClick={onBack} />
       </PageHead>
 
@@ -1084,8 +1435,25 @@ function CreateServicePage({
                 { value: "ONE_TIME", label: "Единоразовая" },
                 { value: "CONTINUOUS", label: "Продолжительная" },
               ]}
-              onChange={(value) => onServiceTypeChange((value as BillingServiceType | undefined) ?? "ONE_TIME")}
+              onChange={(value) => {
+                const nextType = (value as BillingServiceType | undefined) ?? "ONE_TIME";
+                onServiceTypeChange(nextType);
+                if (nextType !== "CONTINUOUS") {
+                  onDurationDaysChange("");
+                }
+              }}
             />
+            {serviceType === "CONTINUOUS" && (
+              <label>
+                Количество дней
+                <input
+                  inputMode="numeric"
+                  min={1}
+                  value={durationDays}
+                  onChange={(event) => onDurationDaysChange(event.target.value)}
+                />
+              </label>
+            )}
             <SelectMulti
               label="Операции"
               placeholder=" "
@@ -1098,6 +1466,11 @@ function CreateServicePage({
               <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
                 Сохранить
               </BaseButton>
+              {onDelete && (
+                <button className="design-button delete-button" type="button" onClick={onDelete}>
+                  Удалить
+                </button>
+              )}
             </div>
           </form>
         </PageCard>
@@ -1110,10 +1483,12 @@ function TariffsPage({
   tariffs,
   isLoading,
   onCreate,
+  onOpen,
 }: {
   tariffs: BillingTariff[];
   isLoading: boolean;
   onCreate: () => void;
+  onOpen: (tariff: BillingTariff) => void;
 }) {
   return (
     <>
@@ -1127,7 +1502,7 @@ function TariffsPage({
         <PageCard>
           <OrdersTable columns={["Наименование", "Услуги", "Стоимость"]}>
             {tariffs.map((tariff) => (
-              <tr key={tariff.id}>
+              <tr className="clickable-row" key={tariff.id} onClick={() => onOpen(tariff)}>
                 <td>{tariff.name}</td>
                 <td>{tariff.services.map((service) => service.name).join(", ")}</td>
                 <td>{formatMoney(tariff.cost)}</td>
@@ -1142,6 +1517,7 @@ function TariffsPage({
 }
 
 function CreateTariffPage({
+  title = "Создание тарифа",
   services,
   name,
   selectedServices,
@@ -1151,7 +1527,9 @@ function CreateTariffPage({
   onServicesChange,
   onCostChange,
   onSubmit,
+  onDelete,
 }: {
+  title?: string;
   services: BillingService[];
   name: string;
   selectedServices: number[];
@@ -1161,6 +1539,7 @@ function CreateTariffPage({
   onServicesChange: (value: number[]) => void;
   onCostChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onDelete?: () => void;
 }) {
   const selectedServiceValues = selectedServices.map(String);
   const serviceOptions = services.map((service) => ({
@@ -1170,7 +1549,7 @@ function CreateTariffPage({
 
   return (
     <>
-      <PageHead title="Создание тарифа">
+      <PageHead title={title}>
         <UikitBackButton onClick={onBack} />
       </PageHead>
 
@@ -1198,6 +1577,11 @@ function CreateTariffPage({
               <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
                 Сохранить
               </BaseButton>
+              {onDelete && (
+                <button className="design-button delete-button" type="button" onClick={onDelete}>
+                  Удалить
+                </button>
+              )}
             </div>
           </form>
         </PageCard>

@@ -10,6 +10,8 @@ import java.util.Optional;
 public interface BillingServiceRepository extends JpaRepository<BillingService, Long> {
     boolean existsByNameIgnoreCase(String name);
 
+    Optional<BillingService> findByNameIgnoreCase(String name);
+
     @EntityGraph(attributePaths = {"operations"})
     List<BillingService> findAllByOrderByNameAsc();
 

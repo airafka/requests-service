@@ -285,8 +285,20 @@ h2 {
 
 .uikit-form-actions {
   display: flex;
+  gap: 12px;
   justify-content: flex-start;
   padding-top: 4px;
+}
+
+.delete-button {
+  border: 1px solid #fca5a5;
+  background: #fff5f5;
+  color: #b91c1c;
+  box-shadow: none;
+}
+
+.delete-button:hover {
+  background: #fee2e2;
 }
 
 .reference-layout {

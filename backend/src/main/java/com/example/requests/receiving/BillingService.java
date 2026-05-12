@@ -30,6 +30,9 @@ public class BillingService {
     @Column(name = "service_type", nullable = false, length = 32)
     private BillingServiceType serviceType;
 
+    @Column(name = "duration_days")
+    private Integer durationDays;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "service_operation",
@@ -56,6 +59,14 @@ public class BillingService {
 
     public void setServiceType(BillingServiceType serviceType) {
         this.serviceType = serviceType;
+    }
+
+    public Integer getDurationDays() {
+        return durationDays;
+    }
+
+    public void setDurationDays(Integer durationDays) {
+        this.durationDays = durationDays;
     }
 
     public Set<BillingOperation> getOperations() {

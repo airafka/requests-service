@@ -7,6 +7,7 @@ public record BillingServiceResponse(
     Long id,
     String name,
     BillingServiceType serviceType,
+    Integer durationDays,
     List<BillingOperationResponse> operations
 ) {
     static BillingServiceResponse fromEntity(BillingService service) {
@@ -19,6 +20,7 @@ public record BillingServiceResponse(
             service.getId(),
             service.getName(),
             service.getServiceType(),
+            service.getDurationDays(),
             operations
         );
     }
