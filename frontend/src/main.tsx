@@ -1,11 +1,10 @@
-import React from "react";
+﻿import React from "react";
 import ReactDOM from "react-dom/client";
 import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } from "@alabuga/uikit";
 import {
   ArrowLeft,
   Box,
   ChevronDown,
-  CircleDollarSign,
   FileText,
   Layers3,
   ListChecks,
@@ -34,9 +33,6 @@ type Page =
   | "services-list"
   | "services-create"
   | "services-edit"
-  | "tariffs-list"
-  | "tariffs-create"
-  | "tariffs-edit"
   | "complex-services-list"
   | "complex-services-create"
   | "complex-services-edit";
@@ -98,15 +94,8 @@ type BillingService = {
   id: number;
   name: string;
   serviceType: BillingServiceType;
-  durationDays: number | null;
-  operations: BillingOperation[];
-};
-
-type BillingTariff = {
-  id: number;
-  name: string;
-  services: BillingService[];
   cost: number;
+  operations: BillingOperation[];
 };
 
 type ComplexServiceItem = {
@@ -141,14 +130,12 @@ function App() {
   const [clients, setClients] = React.useState<Client[]>([]);
   const [billingOperations, setBillingOperations] = React.useState<BillingOperation[]>([]);
   const [billingServices, setBillingServices] = React.useState<BillingService[]>([]);
-  const [billingTariffs, setBillingTariffs] = React.useState<BillingTariff[]>([]);
   const [complexServices, setComplexServices] = React.useState<ComplexService[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
   const [selectedShippingOrderId, setSelectedShippingOrderId] = React.useState<number | null>(null);
   const [selectedOwnerChangeOrderId, setSelectedOwnerChangeOrderId] = React.useState<number | null>(null);
   const [selectedOperationId, setSelectedOperationId] = React.useState<number | null>(null);
   const [selectedServiceId, setSelectedServiceId] = React.useState<number | null>(null);
-  const [selectedTariffId, setSelectedTariffId] = React.useState<number | null>(null);
   const [selectedComplexServiceId, setSelectedComplexServiceId] = React.useState<number | null>(null);
   const [receivingClientId, setReceivingClientId] = React.useState("");
   const [receivingContainers, setReceivingContainers] = React.useState<string[]>([]);
@@ -161,11 +148,8 @@ function App() {
   const [newOperationName, setNewOperationName] = React.useState("");
   const [newServiceName, setNewServiceName] = React.useState("");
   const [newServiceType, setNewServiceType] = React.useState<BillingServiceType>("ONE_TIME");
-  const [newServiceDurationDays, setNewServiceDurationDays] = React.useState("");
+  const [newServiceCost, setNewServiceCost] = React.useState("");
   const [newServiceOperationIds, setNewServiceOperationIds] = React.useState<number[]>([]);
-  const [newTariffName, setNewTariffName] = React.useState("");
-  const [newTariffServiceIds, setNewTariffServiceIds] = React.useState<number[]>([]);
-  const [newTariffCost, setNewTariffCost] = React.useState("");
   const [newComplexServiceName, setNewComplexServiceName] = React.useState("");
   const [newComplexServiceItems, setNewComplexServiceItems] = React.useState<ComplexServiceFormItem[]>([]);
   const [isReceivingDropdownOpen, setIsReceivingDropdownOpen] = React.useState(false);
@@ -178,7 +162,6 @@ function App() {
   const selectedOwnerChangeOrder = ownerChangeOrders.find((order) => order.id === selectedOwnerChangeOrderId) ?? null;
   const selectedOperation = billingOperations.find((operation) => operation.id === selectedOperationId) ?? null;
   const selectedService = billingServices.find((service) => service.id === selectedServiceId) ?? null;
-  const selectedTariff = billingTariffs.find((tariff) => tariff.id === selectedTariffId) ?? null;
   const selectedComplexService =
     complexServices.find((complexService) => complexService.id === selectedComplexServiceId) ?? null;
 
@@ -195,7 +178,6 @@ function App() {
         clientsResponse,
         operationsResponse,
         servicesResponse,
-        tariffsResponse,
         complexServicesResponse,
       ] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
@@ -205,7 +187,6 @@ function App() {
         fetch(`${API_BASE}/clients`),
         fetch(`${API_BASE}/operations`),
         fetch(`${API_BASE}/services`),
-        fetch(`${API_BASE}/tariffs`),
         fetch(`${API_BASE}/complex-services`),
       ]);
 
@@ -217,7 +198,6 @@ function App() {
         !clientsResponse.ok ||
         !operationsResponse.ok ||
         !servicesResponse.ok ||
-        !tariffsResponse.ok ||
         !complexServicesResponse.ok
       ) {
         throw new Error("Не удалось загрузить данные");
@@ -230,7 +210,6 @@ function App() {
       setClients(await clientsResponse.json());
       setBillingOperations(await operationsResponse.json());
       setBillingServices(await servicesResponse.json());
-      setBillingTariffs(await tariffsResponse.json());
       setComplexServices(await complexServicesResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неизвестная ошибка");
@@ -471,8 +450,8 @@ function App() {
       return;
     }
 
-    const durationDays = serviceDurationDays();
-    if (durationDays === undefined) {
+    const cost = serviceCost();
+    if (cost === undefined) {
       return;
     }
 
@@ -482,7 +461,7 @@ function App() {
       body: JSON.stringify({
         name: newServiceName.trim(),
         serviceType: newServiceType,
-        durationDays,
+        cost,
         operationIds: newServiceOperationIds,
       }),
     });
@@ -494,7 +473,7 @@ function App() {
 
     setNewServiceName("");
     setNewServiceType("ONE_TIME");
-    setNewServiceDurationDays("");
+    setNewServiceCost("");
     setNewServiceOperationIds([]);
     await loadData();
     setPage("services-list");
@@ -519,8 +498,8 @@ function App() {
       return;
     }
 
-    const durationDays = serviceDurationDays();
-    if (durationDays === undefined) {
+    const cost = serviceCost();
+    if (cost === undefined) {
       return;
     }
 
@@ -530,7 +509,7 @@ function App() {
       body: JSON.stringify({
         name: newServiceName.trim(),
         serviceType: newServiceType,
-        durationDays,
+        cost,
         operationIds: newServiceOperationIds,
       }),
     });
@@ -563,117 +542,6 @@ function App() {
     resetServiceForm();
     await loadData();
     setPage("services-list");
-  }
-
-  async function createBillingTariff(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-
-    const normalizedCost = newTariffCost.replace(",", ".");
-    const cost = Number(normalizedCost);
-
-    if (!newTariffName.trim()) {
-      setError("Введите наименование тарифа");
-      return;
-    }
-
-    if (newTariffServiceIds.length === 0) {
-      setError("Выберите хотя бы одну услугу");
-      return;
-    }
-
-    if (!Number.isFinite(cost) || cost < 0) {
-      setError("Введите корректную стоимость");
-      return;
-    }
-
-    const response = await fetch(`${API_BASE}/tariffs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: newTariffName.trim(),
-        serviceIds: newTariffServiceIds,
-        cost,
-      }),
-    });
-
-    if (!response.ok) {
-      setError(await errorText(response, "Не удалось создать тариф"));
-      return;
-    }
-
-    setNewTariffName("");
-    setNewTariffServiceIds([]);
-    setNewTariffCost("");
-    await loadData();
-    setPage("tariffs-list");
-  }
-
-  async function updateBillingTariff(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-
-    if (!selectedTariff) {
-      setError("Тариф не выбран");
-      return;
-    }
-
-    const normalizedCost = newTariffCost.replace(",", ".");
-    const cost = Number(normalizedCost);
-
-    if (!newTariffName.trim()) {
-      setError("Введите наименование тарифа");
-      return;
-    }
-
-    if (newTariffServiceIds.length === 0) {
-      setError("Выберите хотя бы одну услугу");
-      return;
-    }
-
-    if (!Number.isFinite(cost) || cost < 0) {
-      setError("Введите корректную стоимость");
-      return;
-    }
-
-    const response = await fetch(`${API_BASE}/tariffs/${selectedTariff.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: newTariffName.trim(),
-        serviceIds: newTariffServiceIds,
-        cost,
-      }),
-    });
-
-    if (!response.ok) {
-      setError(await errorText(response, "Не удалось обновить тариф"));
-      return;
-    }
-
-    resetTariffForm();
-    await loadData();
-    setPage("tariffs-list");
-  }
-
-  async function deleteBillingTariff() {
-    if (!selectedTariff) {
-      return;
-    }
-
-    setError(null);
-    const response = await fetch(`${API_BASE}/tariffs/${selectedTariff.id}`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      setError(await errorText(response, "Не удалось удалить тариф"));
-      return;
-    }
-
-    resetTariffForm();
-    await loadData();
-    setPage("tariffs-list");
   }
 
   async function createComplexService(event: React.FormEvent<HTMLFormElement>) {
@@ -751,33 +619,22 @@ function App() {
     setPage("complex-services-list");
   }
 
-  function serviceDurationDays() {
-    if (newServiceType !== "CONTINUOUS") {
-      return null;
-    }
-
-    const durationDays = Number(newServiceDurationDays);
-    if (!Number.isInteger(durationDays) || durationDays <= 0) {
-      setError("Введите корректное количество дней");
+  function serviceCost() {
+    const cost = Number(newServiceCost.replace(",", "."));
+    if (!Number.isFinite(cost) || cost < 0) {
+      setError("Введите корректную стоимость");
       return undefined;
     }
 
-    return durationDays;
+    return cost;
   }
 
   function resetServiceForm() {
     setSelectedServiceId(null);
     setNewServiceName("");
     setNewServiceType("ONE_TIME");
-    setNewServiceDurationDays("");
+    setNewServiceCost("");
     setNewServiceOperationIds([]);
-  }
-
-  function resetTariffForm() {
-    setSelectedTariffId(null);
-    setNewTariffName("");
-    setNewTariffServiceIds([]);
-    setNewTariffCost("");
   }
 
   function resetComplexServiceForm() {
@@ -898,17 +755,9 @@ function App() {
     setSelectedServiceId(service.id);
     setNewServiceName(service.name);
     setNewServiceType(service.serviceType);
-    setNewServiceDurationDays(service.durationDays ? String(service.durationDays) : "");
+    setNewServiceCost(String(service.cost));
     setNewServiceOperationIds(service.operations.map((operation) => operation.id));
     setPage("services-edit");
-  }
-
-  function openTariff(tariff: BillingTariff) {
-    setSelectedTariffId(tariff.id);
-    setNewTariffName(tariff.name);
-    setNewTariffServiceIds(tariff.services.map((service) => service.id));
-    setNewTariffCost(String(tariff.cost));
-    setPage("tariffs-edit");
   }
 
   function openComplexService(complexService: ComplexService) {
@@ -986,14 +835,6 @@ function App() {
           >
             <PackageCheck size={18} />
             <span>Услуги</span>
-          </button>
-          <button
-            className={page.startsWith("tariffs") ? "active" : ""}
-            type="button"
-            onClick={() => setPage("tariffs-list")}
-          >
-            <CircleDollarSign size={18} />
-            <span>Тарифы</span>
           </button>
           <button
             className={page.startsWith("complex-services") ? "active" : ""}
@@ -1197,12 +1038,12 @@ function App() {
             operations={billingOperations}
             name={newServiceName}
             serviceType={newServiceType}
-            durationDays={newServiceDurationDays}
+            cost={newServiceCost}
             selectedOperations={newServiceOperationIds}
             onBack={() => setPage("services-list")}
             onNameChange={setNewServiceName}
             onServiceTypeChange={setNewServiceType}
-            onDurationDaysChange={setNewServiceDurationDays}
+            onCostChange={setNewServiceCost}
             onOperationsChange={setNewServiceOperationIds}
             onSubmit={createBillingService}
           />
@@ -1214,58 +1055,15 @@ function App() {
             operations={billingOperations}
             name={newServiceName}
             serviceType={newServiceType}
-            durationDays={newServiceDurationDays}
+            cost={newServiceCost}
             selectedOperations={newServiceOperationIds}
             onBack={() => setPage("services-list")}
             onNameChange={setNewServiceName}
             onServiceTypeChange={setNewServiceType}
-            onDurationDaysChange={setNewServiceDurationDays}
+            onCostChange={setNewServiceCost}
             onOperationsChange={setNewServiceOperationIds}
             onSubmit={updateBillingService}
             onDelete={deleteBillingService}
-          />
-        )}
-
-        {page === "tariffs-list" && (
-          <TariffsPage
-            tariffs={billingTariffs}
-            isLoading={isLoading}
-            onCreate={() => {
-              resetTariffForm();
-              setPage("tariffs-create");
-            }}
-            onOpen={openTariff}
-          />
-        )}
-
-        {page === "tariffs-create" && (
-          <CreateTariffPage
-            title="Создание тарифа"
-            services={billingServices}
-            name={newTariffName}
-            selectedServices={newTariffServiceIds}
-            cost={newTariffCost}
-            onBack={() => setPage("tariffs-list")}
-            onNameChange={setNewTariffName}
-            onServicesChange={setNewTariffServiceIds}
-            onCostChange={setNewTariffCost}
-            onSubmit={createBillingTariff}
-          />
-        )}
-
-        {page === "tariffs-edit" && (
-          <CreateTariffPage
-            title="Редактирование тарифа"
-            services={billingServices}
-            name={newTariffName}
-            selectedServices={newTariffServiceIds}
-            cost={newTariffCost}
-            onBack={() => setPage("tariffs-list")}
-            onNameChange={setNewTariffName}
-            onServicesChange={setNewTariffServiceIds}
-            onCostChange={setNewTariffCost}
-            onSubmit={updateBillingTariff}
-            onDelete={deleteBillingTariff}
           />
         )}
 
@@ -1600,12 +1398,12 @@ function ServicesPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Наименование", "Признак", "Количество дней", "Операции"]}>
+          <OrdersTable columns={["Наименование", "Признак", "Стоимость", "Операции"]}>
             {services.map((service) => (
               <tr className="clickable-row" key={service.id} onClick={() => onOpen(service)}>
                 <td>{service.name}</td>
                 <td>{serviceTypeLabel(service.serviceType)}</td>
-                <td>{service.durationDays ?? "-"}</td>
+                <td>{formatMoney(service.cost)}</td>
                 <td>{service.operations.map((operation) => operation.name).join(", ")}</td>
               </tr>
             ))}
@@ -1622,12 +1420,12 @@ function CreateServicePage({
   operations,
   name,
   serviceType,
-  durationDays,
+  cost,
   selectedOperations,
   onBack,
   onNameChange,
   onServiceTypeChange,
-  onDurationDaysChange,
+  onCostChange,
   onOperationsChange,
   onSubmit,
   onDelete,
@@ -1636,12 +1434,12 @@ function CreateServicePage({
   operations: BillingOperation[];
   name: string;
   serviceType: BillingServiceType;
-  durationDays: string;
+  cost: string;
   selectedOperations: number[];
   onBack: () => void;
   onNameChange: (value: string) => void;
   onServiceTypeChange: (value: BillingServiceType) => void;
-  onDurationDaysChange: (value: string) => void;
+  onCostChange: (value: string) => void;
   onOperationsChange: (value: number[]) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onDelete?: () => void;
@@ -1677,22 +1475,12 @@ function CreateServicePage({
               onChange={(value) => {
                 const nextType = (value as BillingServiceType | undefined) ?? "ONE_TIME";
                 onServiceTypeChange(nextType);
-                if (nextType !== "CONTINUOUS") {
-                  onDurationDaysChange("");
-                }
               }}
             />
-            {serviceType === "CONTINUOUS" && (
-              <label>
-                Количество дней
-                <input
-                  inputMode="numeric"
-                  min={1}
-                  value={durationDays}
-                  onChange={(event) => onDurationDaysChange(event.target.value)}
-                />
-              </label>
-            )}
+            <label>
+              Стоимость
+              <input inputMode="decimal" value={cost} onChange={(event) => onCostChange(event.target.value)} />
+            </label>
             <SelectMulti
               label="Операции"
               placeholder=" "
@@ -1701,117 +1489,6 @@ function CreateServicePage({
               selectAllLabel="Выбрать все операции"
               onChange={(value) => onOperationsChange(value.map(Number))}
             />
-            <div className="uikit-form-actions">
-              <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
-                Сохранить
-              </BaseButton>
-              {onDelete && (
-                <button className="design-button delete-button" type="button" onClick={onDelete}>
-                  Удалить
-                </button>
-              )}
-            </div>
-          </form>
-        </PageCard>
-      </div>
-    </>
-  );
-}
-
-function TariffsPage({
-  tariffs,
-  isLoading,
-  onCreate,
-  onOpen,
-}: {
-  tariffs: BillingTariff[];
-  isLoading: boolean;
-  onCreate: () => void;
-  onOpen: (tariff: BillingTariff) => void;
-}) {
-  return (
-    <>
-      <PageHead title="Тарифы">
-        <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
-          Создать
-        </BaseButton>
-      </PageHead>
-
-      <div className="uikit-table-card">
-        <PageCard>
-          <OrdersTable columns={["Наименование", "Услуги", "Стоимость"]}>
-            {tariffs.map((tariff) => (
-              <tr className="clickable-row" key={tariff.id} onClick={() => onOpen(tariff)}>
-                <td>{tariff.name}</td>
-                <td>{tariff.services.map((service) => service.name).join(", ")}</td>
-                <td>{formatMoney(tariff.cost)}</td>
-              </tr>
-            ))}
-            {tariffs.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Тарифов пока нет"} />}
-          </OrdersTable>
-        </PageCard>
-      </div>
-    </>
-  );
-}
-
-function CreateTariffPage({
-  title = "Создание тарифа",
-  services,
-  name,
-  selectedServices,
-  cost,
-  onBack,
-  onNameChange,
-  onServicesChange,
-  onCostChange,
-  onSubmit,
-  onDelete,
-}: {
-  title?: string;
-  services: BillingService[];
-  name: string;
-  selectedServices: number[];
-  cost: string;
-  onBack: () => void;
-  onNameChange: (value: string) => void;
-  onServicesChange: (value: number[]) => void;
-  onCostChange: (value: string) => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-  onDelete?: () => void;
-}) {
-  const selectedServiceValues = selectedServices.map(String);
-  const serviceOptions = services.map((service) => ({
-    value: String(service.id),
-    label: service.name,
-  }));
-
-  return (
-    <>
-      <PageHead title={title}>
-        <UikitBackButton onClick={onBack} />
-      </PageHead>
-
-      <div className="uikit-form-shell">
-        <PageCard>
-          <form className="uikit-form create-page-form" onSubmit={onSubmit}>
-            <h2>Данные тарифа</h2>
-            <label>
-              Наименование
-              <input value={name} onChange={(event) => onNameChange(event.target.value)} maxLength={180} />
-            </label>
-            <SelectMulti
-              label="Услуги"
-              placeholder=" "
-              value={selectedServiceValues}
-              options={serviceOptions}
-              selectAllLabel="Выбрать все услуги"
-              onChange={(value) => onServicesChange(value.map(Number))}
-            />
-            <label>
-              Стоимость
-              <input inputMode="decimal" value={cost} onChange={(event) => onCostChange(event.target.value)} />
-            </label>
             <div className="uikit-form-actions">
               <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
                 Сохранить

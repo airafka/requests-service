@@ -88,20 +88,8 @@ public class BillingServiceController {
     ) {
         service.setName(name);
         service.setServiceType(dto.serviceType());
-        service.setDurationDays(durationDays(dto));
+        service.setCost(dto.cost());
         service.setOperations(new LinkedHashSet<>(operations));
-    }
-
-    private Integer durationDays(CreateBillingServiceDto dto) {
-        if (dto.serviceType() != BillingServiceType.CONTINUOUS) {
-            return null;
-        }
-
-        if (dto.durationDays() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Duration days is required");
-        }
-
-        return dto.durationDays();
     }
 
     @DeleteMapping("/{id}")
@@ -114,7 +102,7 @@ public class BillingServiceController {
         try {
             serviceRepository.deleteById(id);
         } catch (DataIntegrityViolationException exception) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Service is used by tariffs");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Service is used");
         }
     }
 }

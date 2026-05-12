@@ -1,0 +1,9 @@
+ALTER TABLE service
+    ADD COLUMN IF NOT EXISTS cost NUMERIC(12, 2) NOT NULL DEFAULT 0;
+
+ALTER TABLE service
+    DROP COLUMN IF EXISTS duration_days;
+
+DROP TABLE IF EXISTS tariff_service;
+
+DROP TABLE IF EXISTS tariff;

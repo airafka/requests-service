@@ -1,5 +1,6 @@
 package com.example.requests.receiving;
 
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 
@@ -7,7 +8,7 @@ public record BillingServiceResponse(
     Long id,
     String name,
     BillingServiceType serviceType,
-    Integer durationDays,
+    BigDecimal cost,
     List<BillingOperationResponse> operations
 ) {
     static BillingServiceResponse fromEntity(BillingService service) {
@@ -20,7 +21,7 @@ public record BillingServiceResponse(
             service.getId(),
             service.getName(),
             service.getServiceType(),
-            service.getDurationDays(),
+            service.getCost(),
             operations
         );
     }

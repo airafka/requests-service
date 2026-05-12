@@ -13,6 +13,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -30,8 +31,8 @@ public class BillingService {
     @Column(name = "service_type", nullable = false, length = 32)
     private BillingServiceType serviceType;
 
-    @Column(name = "duration_days")
-    private Integer durationDays;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal cost;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -61,12 +62,12 @@ public class BillingService {
         this.serviceType = serviceType;
     }
 
-    public Integer getDurationDays() {
-        return durationDays;
+    public BigDecimal getCost() {
+        return cost;
     }
 
-    public void setDurationDays(Integer durationDays) {
-        this.durationDays = durationDays;
+    public void setCost(BigDecimal cost) {
+        this.cost = cost;
     }
 
     public Set<BillingOperation> getOperations() {
