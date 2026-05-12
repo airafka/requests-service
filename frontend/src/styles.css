@@ -292,8 +292,8 @@ h2 {
 
 .delete-button {
   min-width: 0;
-  width: auto;
-  padding: 0 22px;
+  width: 144px;
+  padding: 0 16px;
   background: #dc2626;
   color: #ffffff;
 }
@@ -320,12 +320,8 @@ h2 {
   gap: 12px;
 }
 
-.complex-service-form {
-  width: 100%;
-}
-
 .complex-service-shell {
-  width: min(1080px, 100%);
+  width: min(1180px, 100%);
 }
 
 .complex-service-items-head {
@@ -390,6 +386,10 @@ h2 {
 
 .create-page-form {
   width: min(620px, 100%);
+}
+
+.create-page-form.complex-service-form {
+  width: 100%;
 }
 
 label,
