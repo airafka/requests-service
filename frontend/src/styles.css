@@ -291,8 +291,13 @@ h2 {
 }
 
 .delete-button {
-  background: #3472ed;
+  min-width: 144px;
+  background: #dc2626;
   color: #ffffff;
+}
+
+.delete-button:hover {
+  background: #b91c1c;
 }
 
 .link-button {
