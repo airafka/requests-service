@@ -319,6 +319,10 @@ h2 {
   gap: 12px;
 }
 
+.complex-service-form {
+  width: min(960px, 100%);
+}
+
 .complex-service-items-head {
   display: flex;
   align-items: center;
@@ -328,13 +332,21 @@ h2 {
   font-weight: 600;
 }
 
-.complex-service-item {
-  display: grid;
-  gap: 12px;
-  border: 1px solid #f2f4f7;
-  border-radius: 5px;
-  padding: 14px;
-  background: #ffffff;
+.complex-service-table {
+  min-width: 820px;
+}
+
+.complex-service-table th {
+  width: 25%;
+}
+
+.complex-service-table td {
+  vertical-align: middle;
+}
+
+.complex-service-table input,
+.complex-service-table select {
+  height: 36px;
 }
 
 .reference-layout {

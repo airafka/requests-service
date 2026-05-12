@@ -1917,7 +1917,7 @@ function CreateComplexServicePage({
 
       <div className="uikit-form-shell">
         <PageCard>
-          <form className="uikit-form create-page-form" onSubmit={onSubmit}>
+          <form className="uikit-form create-page-form complex-service-form" onSubmit={onSubmit}>
             <h2>Данные комплексной услуги</h2>
             <label>
               Наименование
@@ -1932,57 +1932,79 @@ function CreateComplexServicePage({
                 </button>
               </div>
 
-              {items.map((item, index) => {
-                const selectedService = services.find((service) => service.id === Number(item.serviceId)) ?? null;
+              <div className="table-wrap">
+                <table className="orders-table complex-service-table">
+                  <thead>
+                    <tr>
+                      <th>Услуга</th>
+                      <th>Количество операций</th>
+                      <th>Количество дней</th>
+                      <th>Действие</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item, index) => {
+                      const selectedService = services.find((service) => service.id === Number(item.serviceId)) ?? null;
+                      const isOneTime = selectedService?.serviceType === "ONE_TIME";
+                      const isContinuous = selectedService?.serviceType === "CONTINUOUS";
 
-                return (
-                  <div className="complex-service-item" key={`${item.serviceId}-${index}`}>
-                    <Select
-                      label="Услуга"
-                      placeholder=" "
-                      value={item.serviceId || undefined}
-                      options={serviceOptions}
-                      onChange={(value) =>
-                        updateItem(index, {
-                          serviceId: value ? String(value) : "",
-                          operationCount: "",
-                          durationDays: "",
-                        })
-                      }
-                    />
-
-                    {selectedService?.serviceType === "ONE_TIME" && (
-                      <label>
-                        Количество операций
-                        <input
-                          inputMode="numeric"
-                          min={1}
-                          value={item.operationCount}
-                          onChange={(event) => updateItem(index, { operationCount: event.target.value })}
-                        />
-                      </label>
-                    )}
-
-                    {selectedService?.serviceType === "CONTINUOUS" && (
-                      <label>
-                        Количество дней
-                        <input
-                          inputMode="numeric"
-                          min={1}
-                          value={item.durationDays}
-                          onChange={(event) => updateItem(index, { durationDays: event.target.value })}
-                        />
-                      </label>
-                    )}
-
-                    <button className="link-button danger-link" type="button" onClick={() => removeItem(index)}>
-                      Удалить строку
-                    </button>
-                  </div>
-                );
-              })}
-
-              {items.length === 0 && <p className="muted">Добавьте услуги, входящие в комплекс.</p>}
+                      return (
+                        <tr key={`${item.serviceId}-${index}`}>
+                          <td>
+                            <select
+                              value={item.serviceId}
+                              onChange={(event) =>
+                                updateItem(index, {
+                                  serviceId: event.target.value,
+                                  operationCount: "",
+                                  durationDays: "",
+                                })
+                              }
+                            >
+                              <option value="">Выберите услугу</option>
+                              {serviceOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            {isOneTime ? (
+                              <input
+                                inputMode="numeric"
+                                min={1}
+                                value={item.operationCount}
+                                onChange={(event) => updateItem(index, { operationCount: event.target.value })}
+                              />
+                            ) : (
+                              <span className="muted">-</span>
+                            )}
+                          </td>
+                          <td>
+                            {isContinuous ? (
+                              <input
+                                inputMode="numeric"
+                                min={1}
+                                value={item.durationDays}
+                                onChange={(event) => updateItem(index, { durationDays: event.target.value })}
+                              />
+                            ) : (
+                              <span className="muted">-</span>
+                            )}
+                          </td>
+                          <td>
+                            <button className="link-button danger-link" type="button" onClick={() => removeItem(index)}>
+                              Удалить
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {items.length === 0 && <EmptyRow colSpan={4} text="Добавьте услуги, входящие в комплекс" />}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="uikit-form-actions">
