@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } from "@alabuga/uikit";
-import { ArrowLeft, Box, ChevronDown, FileText, Repeat2, Truck } from "lucide-react";
+import { ArrowLeft, Box, ChevronDown, CircleDollarSign, FileText, ListChecks, PackageCheck, Repeat2, Truck } from "lucide-react";
 import "./styles.css";
 
 type Page =
@@ -16,7 +16,13 @@ type Page =
   | "owner-details"
   | "container-owner-details"
   | "containers-list"
-  | "containers-create";
+  | "containers-create"
+  | "operations-list"
+  | "operations-create"
+  | "services-list"
+  | "services-create"
+  | "tariffs-list"
+  | "tariffs-create";
 
 type Client = {
   id: number;
@@ -64,6 +70,27 @@ type ContainerOwnerHistory = {
   createdBy: string | null;
 };
 
+type BillingOperation = {
+  id: number;
+  name: string;
+};
+
+type BillingServiceType = "ONE_TIME" | "CONTINUOUS";
+
+type BillingService = {
+  id: number;
+  name: string;
+  serviceType: BillingServiceType;
+  operations: BillingOperation[];
+};
+
+type BillingTariff = {
+  id: number;
+  name: string;
+  services: BillingService[];
+  cost: number;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 function App() {
@@ -75,6 +102,9 @@ function App() {
   const [selectedOwnerHistory, setSelectedOwnerHistory] = React.useState<ContainerOwnerHistory[]>([]);
   const [containers, setContainers] = React.useState<Container[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
+  const [billingOperations, setBillingOperations] = React.useState<BillingOperation[]>([]);
+  const [billingServices, setBillingServices] = React.useState<BillingService[]>([]);
+  const [billingTariffs, setBillingTariffs] = React.useState<BillingTariff[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
   const [selectedShippingOrderId, setSelectedShippingOrderId] = React.useState<number | null>(null);
   const [selectedOwnerChangeOrderId, setSelectedOwnerChangeOrderId] = React.useState<number | null>(null);
@@ -86,6 +116,13 @@ function App() {
   const [ownerComment, setOwnerComment] = React.useState("");
   const [ownerContainers, setOwnerContainers] = React.useState<number[]>([]);
   const [newContainerNumber, setNewContainerNumber] = React.useState("");
+  const [newOperationName, setNewOperationName] = React.useState("");
+  const [newServiceName, setNewServiceName] = React.useState("");
+  const [newServiceType, setNewServiceType] = React.useState<BillingServiceType>("ONE_TIME");
+  const [newServiceOperationIds, setNewServiceOperationIds] = React.useState<number[]>([]);
+  const [newTariffName, setNewTariffName] = React.useState("");
+  const [newTariffServiceIds, setNewTariffServiceIds] = React.useState<number[]>([]);
+  const [newTariffCost, setNewTariffCost] = React.useState("");
   const [isReceivingDropdownOpen, setIsReceivingDropdownOpen] = React.useState(false);
   const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -100,12 +137,24 @@ function App() {
     setError(null);
 
     try {
-      const [receivingResponse, shippingResponse, ownerChangeResponse, containersResponse, clientsResponse] = await Promise.all([
+      const [
+        receivingResponse,
+        shippingResponse,
+        ownerChangeResponse,
+        containersResponse,
+        clientsResponse,
+        operationsResponse,
+        servicesResponse,
+        tariffsResponse,
+      ] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
         fetch(`${API_BASE}/shipping-orders`),
         fetch(`${API_BASE}/container-owner-change-orders`),
         fetch(`${API_BASE}/containers`),
         fetch(`${API_BASE}/clients`),
+        fetch(`${API_BASE}/operations`),
+        fetch(`${API_BASE}/services`),
+        fetch(`${API_BASE}/tariffs`),
       ]);
 
       if (
@@ -113,7 +162,10 @@ function App() {
         !shippingResponse.ok ||
         !ownerChangeResponse.ok ||
         !containersResponse.ok ||
-        !clientsResponse.ok
+        !clientsResponse.ok ||
+        !operationsResponse.ok ||
+        !servicesResponse.ok ||
+        !tariffsResponse.ok
       ) {
         throw new Error("Не удалось загрузить данные");
       }
@@ -123,6 +175,9 @@ function App() {
       setOwnerChangeOrders(await ownerChangeResponse.json());
       setContainers(await containersResponse.json());
       setClients(await clientsResponse.json());
+      setBillingOperations(await operationsResponse.json());
+      setBillingServices(await servicesResponse.json());
+      setBillingTariffs(await tariffsResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неизвестная ошибка");
     } finally {
@@ -271,6 +326,111 @@ function App() {
     setPage("containers-list");
   }
 
+  async function createBillingOperation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!newOperationName.trim()) {
+      setError("Введите наименование операции");
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/operations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newOperationName.trim() }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось создать операцию"));
+      return;
+    }
+
+    setNewOperationName("");
+    await loadData();
+    setPage("operations-list");
+  }
+
+  async function createBillingService(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!newServiceName.trim()) {
+      setError("Введите наименование услуги");
+      return;
+    }
+
+    if (newServiceOperationIds.length === 0) {
+      setError("Выберите хотя бы одну операцию");
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/services`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: newServiceName.trim(),
+        serviceType: newServiceType,
+        operationIds: newServiceOperationIds,
+      }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось создать услугу"));
+      return;
+    }
+
+    setNewServiceName("");
+    setNewServiceType("ONE_TIME");
+    setNewServiceOperationIds([]);
+    await loadData();
+    setPage("services-list");
+  }
+
+  async function createBillingTariff(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    const normalizedCost = newTariffCost.replace(",", ".");
+    const cost = Number(normalizedCost);
+
+    if (!newTariffName.trim()) {
+      setError("Введите наименование тарифа");
+      return;
+    }
+
+    if (newTariffServiceIds.length === 0) {
+      setError("Выберите хотя бы одну услугу");
+      return;
+    }
+
+    if (!Number.isFinite(cost) || cost < 0) {
+      setError("Введите корректную стоимость");
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/tariffs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: newTariffName.trim(),
+        serviceIds: newTariffServiceIds,
+        cost,
+      }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось создать тариф"));
+      return;
+    }
+
+    setNewTariffName("");
+    setNewTariffServiceIds([]);
+    setNewTariffCost("");
+    await loadData();
+    setPage("tariffs-list");
+  }
+
   function toggleReceivingContainer(number: string) {
     setReceivingContainers((current) =>
       current.includes(number) ? current.filter((item) => item !== number) : [...current, number],
@@ -364,6 +524,30 @@ function App() {
           >
             <Box size={18} />
             <span>КТК</span>
+          </button>
+          <button
+            className={page.startsWith("operations") ? "active" : ""}
+            type="button"
+            onClick={() => setPage("operations-list")}
+          >
+            <ListChecks size={18} />
+            <span>Операции</span>
+          </button>
+          <button
+            className={page.startsWith("services") ? "active" : ""}
+            type="button"
+            onClick={() => setPage("services-list")}
+          >
+            <PackageCheck size={18} />
+            <span>Услуги</span>
+          </button>
+          <button
+            className={page.startsWith("tariffs") ? "active" : ""}
+            type="button"
+            onClick={() => setPage("tariffs-list")}
+          >
+            <CircleDollarSign size={18} />
+            <span>Тарифы</span>
           </button>
         </nav>
       </aside>
@@ -504,6 +688,55 @@ function App() {
             onBack={() => setPage("containers-list")}
             onNumberChange={setNewContainerNumber}
             onSubmit={createContainer}
+          />
+        )}
+
+        {page === "operations-list" && (
+          <OperationsPage operations={billingOperations} isLoading={isLoading} onCreate={() => setPage("operations-create")} />
+        )}
+
+        {page === "operations-create" && (
+          <CreateOperationPage
+            name={newOperationName}
+            onBack={() => setPage("operations-list")}
+            onNameChange={setNewOperationName}
+            onSubmit={createBillingOperation}
+          />
+        )}
+
+        {page === "services-list" && (
+          <ServicesPage services={billingServices} isLoading={isLoading} onCreate={() => setPage("services-create")} />
+        )}
+
+        {page === "services-create" && (
+          <CreateServicePage
+            operations={billingOperations}
+            name={newServiceName}
+            serviceType={newServiceType}
+            selectedOperations={newServiceOperationIds}
+            onBack={() => setPage("services-list")}
+            onNameChange={setNewServiceName}
+            onServiceTypeChange={setNewServiceType}
+            onOperationsChange={setNewServiceOperationIds}
+            onSubmit={createBillingService}
+          />
+        )}
+
+        {page === "tariffs-list" && (
+          <TariffsPage tariffs={billingTariffs} isLoading={isLoading} onCreate={() => setPage("tariffs-create")} />
+        )}
+
+        {page === "tariffs-create" && (
+          <CreateTariffPage
+            services={billingServices}
+            name={newTariffName}
+            selectedServices={newTariffServiceIds}
+            cost={newTariffCost}
+            onBack={() => setPage("tariffs-list")}
+            onNameChange={setNewTariffName}
+            onServicesChange={setNewTariffServiceIds}
+            onCostChange={setNewTariffCost}
+            onSubmit={createBillingTariff}
           />
         )}
       </section>
@@ -684,6 +917,270 @@ function CreateContainerPage({
             <label>
               Номер КТК
               <input value={number} onChange={(event) => onNumberChange(event.target.value)} maxLength={32} />
+            </label>
+            <div className="uikit-form-actions">
+              <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
+                Сохранить
+              </BaseButton>
+            </div>
+          </form>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function OperationsPage({
+  operations,
+  isLoading,
+  onCreate,
+}: {
+  operations: BillingOperation[];
+  isLoading: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <>
+      <PageHead title="Операции">
+        <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
+          Создать
+        </BaseButton>
+      </PageHead>
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Наименование"]}>
+            {operations.map((operation) => (
+              <tr key={operation.id}>
+                <td>{operation.name}</td>
+              </tr>
+            ))}
+            {operations.length === 0 && <EmptyRow colSpan={1} text={isLoading ? "Загрузка..." : "Операций пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function CreateOperationPage({
+  name,
+  onBack,
+  onNameChange,
+  onSubmit,
+}: {
+  name: string;
+  onBack: () => void;
+  onNameChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <>
+      <PageHead title="Создание операции">
+        <UikitBackButton onClick={onBack} />
+      </PageHead>
+
+      <div className="uikit-form-shell">
+        <PageCard>
+          <form className="uikit-form create-page-form" onSubmit={onSubmit}>
+            <h2>Данные операции</h2>
+            <label>
+              Наименование
+              <input value={name} onChange={(event) => onNameChange(event.target.value)} maxLength={180} />
+            </label>
+            <div className="uikit-form-actions">
+              <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
+                Сохранить
+              </BaseButton>
+            </div>
+          </form>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function ServicesPage({
+  services,
+  isLoading,
+  onCreate,
+}: {
+  services: BillingService[];
+  isLoading: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <>
+      <PageHead title="Услуги">
+        <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
+          Создать
+        </BaseButton>
+      </PageHead>
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Наименование", "Признак", "Операции"]}>
+            {services.map((service) => (
+              <tr key={service.id}>
+                <td>{service.name}</td>
+                <td>{serviceTypeLabel(service.serviceType)}</td>
+                <td>{service.operations.map((operation) => operation.name).join(", ")}</td>
+              </tr>
+            ))}
+            {services.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Услуг пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function CreateServicePage({
+  operations,
+  name,
+  serviceType,
+  selectedOperations,
+  onBack,
+  onNameChange,
+  onServiceTypeChange,
+  onOperationsChange,
+  onSubmit,
+}: {
+  operations: BillingOperation[];
+  name: string;
+  serviceType: BillingServiceType;
+  selectedOperations: number[];
+  onBack: () => void;
+  onNameChange: (value: string) => void;
+  onServiceTypeChange: (value: BillingServiceType) => void;
+  onOperationsChange: (value: number[]) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <>
+      <PageHead title="Создание услуги">
+        <UikitBackButton onClick={onBack} />
+      </PageHead>
+
+      <div className="uikit-form-shell">
+        <PageCard>
+          <form className="uikit-form create-page-form" onSubmit={onSubmit}>
+            <h2>Данные услуги</h2>
+            <label>
+              Наименование
+              <input value={name} onChange={(event) => onNameChange(event.target.value)} maxLength={180} />
+            </label>
+            <Select
+              label="Признак"
+              placeholder=" "
+              value={serviceType}
+              options={[
+                { value: "ONE_TIME", label: "Единоразовая" },
+                { value: "CONTINUOUS", label: "Продолжительная" },
+              ]}
+              onChange={(value) => onServiceTypeChange((value as BillingServiceType | undefined) ?? "ONE_TIME")}
+            />
+            <SelectMulti
+              label="Операции"
+              placeholder=" "
+              value={selectedOperations}
+              options={operations.map((operation) => ({ value: operation.id, label: operation.name }))}
+              selectAllLabel="Выбрать все операции"
+              onChange={(value) => onOperationsChange(value.map(Number))}
+            />
+            <div className="uikit-form-actions">
+              <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
+                Сохранить
+              </BaseButton>
+            </div>
+          </form>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function TariffsPage({
+  tariffs,
+  isLoading,
+  onCreate,
+}: {
+  tariffs: BillingTariff[];
+  isLoading: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <>
+      <PageHead title="Тарифы">
+        <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
+          Создать
+        </BaseButton>
+      </PageHead>
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Наименование", "Услуги", "Стоимость"]}>
+            {tariffs.map((tariff) => (
+              <tr key={tariff.id}>
+                <td>{tariff.name}</td>
+                <td>{tariff.services.map((service) => service.name).join(", ")}</td>
+                <td>{formatMoney(tariff.cost)}</td>
+              </tr>
+            ))}
+            {tariffs.length === 0 && <EmptyRow colSpan={3} text={isLoading ? "Загрузка..." : "Тарифов пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function CreateTariffPage({
+  services,
+  name,
+  selectedServices,
+  cost,
+  onBack,
+  onNameChange,
+  onServicesChange,
+  onCostChange,
+  onSubmit,
+}: {
+  services: BillingService[];
+  name: string;
+  selectedServices: number[];
+  cost: string;
+  onBack: () => void;
+  onNameChange: (value: string) => void;
+  onServicesChange: (value: number[]) => void;
+  onCostChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <>
+      <PageHead title="Создание тарифа">
+        <UikitBackButton onClick={onBack} />
+      </PageHead>
+
+      <div className="uikit-form-shell">
+        <PageCard>
+          <form className="uikit-form create-page-form" onSubmit={onSubmit}>
+            <h2>Данные тарифа</h2>
+            <label>
+              Наименование
+              <input value={name} onChange={(event) => onNameChange(event.target.value)} maxLength={180} />
+            </label>
+            <SelectMulti
+              label="Услуги"
+              placeholder=" "
+              value={selectedServices}
+              options={services.map((service) => ({ value: service.id, label: service.name }))}
+              selectAllLabel="Выбрать все услуги"
+              onChange={(value) => onServicesChange(value.map(Number))}
+            />
+            <label>
+              Стоимость
+              <input inputMode="decimal" value={cost} onChange={(event) => onCostChange(event.target.value)} />
             </label>
             <div className="uikit-form-actions">
               <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
@@ -1236,6 +1733,22 @@ function operationLabel(operationType: ContainerOwnerHistory["operationType"]) {
     case "OWNER_CHANGE":
       return "Смена владельца";
   }
+}
+
+function serviceTypeLabel(serviceType: BillingServiceType) {
+  switch (serviceType) {
+    case "ONE_TIME":
+      return "Единоразовая";
+    case "CONTINUOUS":
+      return "Продолжительная";
+  }
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
