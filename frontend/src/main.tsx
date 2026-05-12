@@ -15,7 +15,8 @@ type Page =
   | "owner-create"
   | "owner-details"
   | "container-owner-details"
-  | "containers-list";
+  | "containers-list"
+  | "containers-create";
 
 type Client = {
   id: number;
@@ -357,7 +358,7 @@ function App() {
             <span>Заявки на вывоз</span>
           </button>
           <button
-            className={page === "containers-list" || page === "container-owner-details" ? "active" : ""}
+            className={page.startsWith("containers") || page === "container-owner-details" ? "active" : ""}
             type="button"
             onClick={() => setPage("containers-list")}
           >
@@ -492,10 +493,17 @@ function App() {
           <ContainersPage
             containers={containers}
             isLoading={isLoading}
+            onCreate={() => setPage("containers-create")}
+            onOpen={openContainerOwnerDetails}
+          />
+        )}
+
+        {page === "containers-create" && (
+          <CreateContainerPage
             number={newContainerNumber}
+            onBack={() => setPage("containers-list")}
             onNumberChange={setNewContainerNumber}
             onSubmit={createContainer}
-            onOpen={openContainerOwnerDetails}
           />
         )}
       </section>
@@ -620,52 +628,70 @@ function OwnerChangeOrdersListPage({
 function ContainersPage({
   containers,
   isLoading,
-  number,
-  onNumberChange,
-  onSubmit,
+  onCreate,
   onOpen,
 }: {
   containers: Container[];
   isLoading: boolean;
-  number: string;
-  onNumberChange: (value: string) => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCreate: () => void;
   onOpen: (container: Container) => void;
 }) {
   return (
     <>
-      <PageHead title="КТК" />
+      <PageHead title="КТК">
+        <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
+          Создать
+        </BaseButton>
+      </PageHead>
 
-      <div className="reference-layout">
-        <div className="uikit-form-shell reference-form">
-          <PageCard>
-            <form className="uikit-form" onSubmit={onSubmit}>
-              <h2>Добавление КТК</h2>
-              <label>
-                Номер КТК
-                <input value={number} onChange={(event) => onNumberChange(event.target.value)} maxLength={32} />
-              </label>
-              <div className="uikit-form-actions">
-                <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
-                  Сохранить
-                </BaseButton>
-              </div>
-            </form>
-          </PageCard>
-        </div>
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Номер КТК"]}>
+            {containers.map((container) => (
+              <tr className="clickable-row" key={container.id} onClick={() => onOpen(container)}>
+                <td>{container.number}</td>
+              </tr>
+            ))}
+            {containers.length === 0 && <EmptyRow colSpan={1} text={isLoading ? "Загрузка..." : "КТК пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
 
-        <div className="uikit-table-card reference-table">
-          <PageCard>
-            <OrdersTable columns={["Номер КТК"]}>
-              {containers.map((container) => (
-                <tr className="clickable-row" key={container.id} onClick={() => onOpen(container)}>
-                  <td>{container.number}</td>
-                </tr>
-              ))}
-              {containers.length === 0 && <EmptyRow colSpan={1} text={isLoading ? "Загрузка..." : "КТК пока нет"} />}
-            </OrdersTable>
-          </PageCard>
-        </div>
+function CreateContainerPage({
+  number,
+  onBack,
+  onNumberChange,
+  onSubmit,
+}: {
+  number: string;
+  onBack: () => void;
+  onNumberChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <>
+      <PageHead title="Создание КТК">
+        <UikitBackButton onClick={onBack} />
+      </PageHead>
+
+      <div className="uikit-form-shell">
+        <PageCard>
+          <form className="uikit-form create-page-form" onSubmit={onSubmit}>
+            <h2>Данные КТК</h2>
+            <label>
+              Номер КТК
+              <input value={number} onChange={(event) => onNumberChange(event.target.value)} maxLength={32} />
+            </label>
+            <div className="uikit-form-actions">
+              <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
+                Сохранить
+              </BaseButton>
+            </div>
+          </form>
+        </PageCard>
       </div>
     </>
   );
