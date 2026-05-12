@@ -10,6 +10,8 @@ MVP веб-сервиса для создания заявок на постав
 
 ## Запуск
 
+Для обычной разработки на этом ПК см. [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md).
+
 ### Вариант 1: через Docker
 
 ```powershell
