@@ -7,7 +7,8 @@ public record CurrentContainerOwnerResponse(
     ClientResponse client,
     OffsetDateTime validFrom,
     ContainerOwnerOperationType operationType,
-    Long sourceId
+    Long sourceId,
+    Integer storageDays
 ) {
     static CurrentContainerOwnerResponse fromEntity(ContainerOwnerHistory history) {
         return new CurrentContainerOwnerResponse(
@@ -15,7 +16,8 @@ public record CurrentContainerOwnerResponse(
             ClientResponse.fromEntity(history.getClient()),
             history.getValidFrom(),
             history.getOperationType(),
-            history.getSourceId()
+            history.getSourceId(),
+            history.getStorageDays()
         );
     }
 }

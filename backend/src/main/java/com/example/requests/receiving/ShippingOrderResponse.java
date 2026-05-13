@@ -8,11 +8,13 @@ public record ShippingOrderResponse(
     String number,
     ClientResponse client,
     OffsetDateTime createdAt,
-    List<ContainerResponse> containers
+    ShippingOrderStatus status,
+    OffsetDateTime completedAt,
+    List<ShippingOrderContainerResponse> containers
 ) {
     static ShippingOrderResponse fromEntity(ShippingOrder order) {
-        List<ContainerResponse> containers = order.getContainers().stream()
-            .map(link -> ContainerResponse.fromEntity(link.getContainer()))
+        List<ShippingOrderContainerResponse> containers = order.getContainers().stream()
+            .map(ShippingOrderContainerResponse::fromEntity)
             .toList();
 
         return new ShippingOrderResponse(
@@ -20,6 +22,8 @@ public record ShippingOrderResponse(
             order.getNumber(),
             ClientResponse.fromEntity(order.getClient()),
             order.getCreatedAt(),
+            order.getStatus(),
+            order.getCompletedAt(),
             containers
         );
     }

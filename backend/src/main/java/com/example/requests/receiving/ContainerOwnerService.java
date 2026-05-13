@@ -42,6 +42,10 @@ public class ContainerOwnerService {
     public void createReceivingHistory(ReceivingOrder order) {
         OffsetDateTime now = OffsetDateTime.now();
         for (ReceivingOrderContainer link : order.getContainers()) {
+            if (historyRepository.existsByOperationTypeAndSourceId(ContainerOwnerOperationType.RECEIVING, link.getId())) {
+                continue;
+            }
+
             historyRepository.findByContainerIdAndValidToIsNull(link.getContainer().getId())
                 .ifPresent(active -> {
                     active.setValidTo(order.getCreatedAt() == null ? now : order.getCreatedAt());
@@ -61,8 +65,12 @@ public class ContainerOwnerService {
 
     @Transactional
     public void createShippingHistory(ShippingOrder order) {
-        OffsetDateTime shippedAt = order.getCreatedAt() == null ? OffsetDateTime.now() : order.getCreatedAt();
+        OffsetDateTime shippedAt = order.getCompletedAt() == null ? OffsetDateTime.now() : order.getCompletedAt();
         for (ShippingOrderContainer link : order.getContainers()) {
+            if (historyRepository.existsByOperationTypeAndSourceId(ContainerOwnerOperationType.SHIPPING, link.getId())) {
+                continue;
+            }
+
             ContainerOwnerHistory active = historyRepository
                 .findByContainerIdAndValidToIsNull(link.getContainer().getId())
                 .orElseThrow(() -> new ResponseStatusException(
@@ -225,6 +233,13 @@ public class ContainerOwnerService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ContainerOwnerHistoryResponse> getAllOwnerHistory() {
+        return historyRepository.findAllByOrderByValidFromDescIdDesc().stream()
+            .map(this::toHistoryResponse)
+            .toList();
+    }
+
     private ContainerOwnerHistoryResponse toHistoryResponse(ContainerOwnerHistory history) {
         String sourceNumber = sourceNumber(history);
         Long sourceOrderId = sourceOrderId(history);
@@ -244,9 +259,47 @@ public class ContainerOwnerService {
             sourceLabel,
             history.getValidFrom(),
             history.getValidTo(),
+            history.getStorageDays(),
             history.getCreatedAt(),
             history.getCreatedBy()
         );
+    }
+
+    @Transactional
+    public ContainerOwnerHistoryResponse updateStorageDays(Long containerId, int storageDays) {
+        ContainerOwnerHistory history = historyRepository.findByContainerIdAndValidToIsNull(containerId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Container is not in storage"));
+
+        history.setStorageDays(storageDays);
+        return toHistoryResponse(historyRepository.save(history));
+    }
+
+    @Transactional(readOnly = true)
+    public void validateContainersBelongToClient(List<ContainerEntity> containers, ClientEntity client) {
+        List<Long> containerIds = containers.stream()
+            .map(ContainerEntity::getId)
+            .toList();
+
+        Map<Long, ContainerOwnerHistory> activeOwners = historyRepository
+            .findByContainerIdInAndValidToIsNull(containerIds)
+            .stream()
+            .collect(Collectors.toMap(history -> history.getContainer().getId(), Function.identity()));
+
+        for (ContainerEntity container : containers) {
+            ContainerOwnerHistory activeOwner = activeOwners.get(container.getId());
+            if (activeOwner == null) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Current owner was not found for container " + container.getNumber()
+                );
+            }
+            if (!activeOwner.getClient().getId().equals(client.getId())) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Container " + container.getNumber() + " does not belong to the selected client"
+                );
+            }
+        }
     }
 
     private String sourceNumber(ContainerOwnerHistory history) {

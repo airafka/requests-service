@@ -9,6 +9,7 @@ import java.util.List;
 
 public record CreateReceivingOrderDto(
     @NotNull Long clientId,
+    @NotNull Long complexServiceId,
     @NotEmpty List<@NotBlank @Size(max = 32) String> containerNumbers
 ) {
 }

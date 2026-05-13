@@ -12,6 +12,7 @@ public record ContainerOwnerHistoryResponse(
     String sourceLabel,
     OffsetDateTime validFrom,
     OffsetDateTime validTo,
+    Integer storageDays,
     OffsetDateTime createdAt,
     String createdBy
 ) {

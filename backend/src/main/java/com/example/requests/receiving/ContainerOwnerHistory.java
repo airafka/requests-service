@@ -54,6 +54,9 @@ public class ContainerOwnerHistory {
     @Column(length = 180)
     private String createdBy;
 
+    @Column(nullable = false)
+    private Integer storageDays = 0;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
@@ -123,5 +126,13 @@ public class ContainerOwnerHistory {
 
     public void setCreatedBy(String createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Integer getStorageDays() {
+        return storageDays;
+    }
+
+    public void setStorageDays(Integer storageDays) {
+        this.storageDays = storageDays;
     }
 }

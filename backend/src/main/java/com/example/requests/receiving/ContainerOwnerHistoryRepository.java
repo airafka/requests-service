@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ContainerOwnerHistoryRepository extends JpaRepository<ContainerOwnerHistory, Long> {
+    boolean existsByOperationTypeAndSourceId(ContainerOwnerOperationType operationType, Long sourceId);
+
     @EntityGraph(attributePaths = {"container", "client"})
     Optional<ContainerOwnerHistory> findByContainerIdAndValidToIsNull(Long containerId);
 
@@ -19,4 +21,7 @@ public interface ContainerOwnerHistoryRepository extends JpaRepository<Container
 
     @EntityGraph(attributePaths = {"container", "client"})
     List<ContainerOwnerHistory> findAllByContainerIdOrderByValidFromDescIdDesc(Long containerId);
+
+    @EntityGraph(attributePaths = {"container", "client"})
+    List<ContainerOwnerHistory> findAllByOrderByValidFromDescIdDesc();
 }

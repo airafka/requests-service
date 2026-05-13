@@ -7,19 +7,21 @@ public record ReceivingOrderResponse(
     Long id,
     String number,
     ClientResponse client,
+    ComplexServiceResponse complexService,
     OffsetDateTime createdAt,
     ReceivingOrderStatus status,
-    List<ContainerResponse> containers
+    List<ReceivingOrderContainerResponse> containers
 ) {
     static ReceivingOrderResponse fromEntity(ReceivingOrder order) {
-        List<ContainerResponse> containers = order.getContainers().stream()
-            .map(link -> ContainerResponse.fromEntity(link.getContainer()))
+        List<ReceivingOrderContainerResponse> containers = order.getContainers().stream()
+            .map(ReceivingOrderContainerResponse::fromEntity)
             .toList();
 
         return new ReceivingOrderResponse(
             order.getId(),
             order.getNumber(),
             ClientResponse.fromEntity(order.getClient()),
+            order.getComplexService() == null ? null : ComplexServiceResponse.fromEntity(order.getComplexService()),
             order.getCreatedAt(),
             order.getStatus(),
             containers

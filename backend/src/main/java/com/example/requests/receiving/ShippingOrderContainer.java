@@ -1,6 +1,8 @@
 package com.example.requests.receiving;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -9,6 +11,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(
@@ -28,6 +32,11 @@ public class ShippingOrderContainer {
     @JoinColumn(name = "container_id", nullable = false)
     private ContainerEntity container;
 
+    @Enumerated(EnumType.STRING)
+    private ShippingOrderContainerStatus status = ShippingOrderContainerStatus.IN_PROGRESS;
+
+    private OffsetDateTime finishedAt;
+
     public Long getId() {
         return id;
     }
@@ -46,5 +55,21 @@ public class ShippingOrderContainer {
 
     public void setContainer(ContainerEntity container) {
         this.container = container;
+    }
+
+    public ShippingOrderContainerStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ShippingOrderContainerStatus status) {
+        this.status = status;
+    }
+
+    public OffsetDateTime getFinishedAt() {
+        return finishedAt;
+    }
+
+    public void setFinishedAt(OffsetDateTime finishedAt) {
+        this.finishedAt = finishedAt;
     }
 }

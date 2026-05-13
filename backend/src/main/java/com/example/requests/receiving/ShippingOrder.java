@@ -3,6 +3,8 @@ package com.example.requests.receiving;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -34,6 +36,12 @@ public class ShippingOrder {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private ShippingOrderStatus status = ShippingOrderStatus.CONFIRMED;
+
+    private OffsetDateTime completedAt;
+
     @OneToMany(mappedBy = "shippingOrder", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ShippingOrderContainer> containers = new ArrayList<>();
 
@@ -64,6 +72,22 @@ public class ShippingOrder {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public ShippingOrderStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ShippingOrderStatus status) {
+        this.status = status;
+    }
+
+    public OffsetDateTime getCompletedAt() {
+        return completedAt;
+    }
+
+    public void setCompletedAt(OffsetDateTime completedAt) {
+        this.completedAt = completedAt;
     }
 
     public List<ShippingOrderContainer> getContainers() {

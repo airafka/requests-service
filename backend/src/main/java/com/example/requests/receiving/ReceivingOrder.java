@@ -33,6 +33,10 @@ public class ReceivingOrder {
     @JoinColumn(name = "client_id", nullable = false)
     private ClientEntity client;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "complex_service_id")
+    private ComplexService complexService;
+
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
@@ -66,6 +70,14 @@ public class ReceivingOrder {
 
     public void setClient(ClientEntity client) {
         this.client = client;
+    }
+
+    public ComplexService getComplexService() {
+        return complexService;
+    }
+
+    public void setComplexService(ComplexService complexService) {
+        this.complexService = complexService;
     }
 
     public OffsetDateTime getCreatedAt() {

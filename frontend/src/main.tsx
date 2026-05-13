@@ -4,7 +4,9 @@ import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } 
 import {
   ArrowLeft,
   Box,
+  Calculator,
   ChevronDown,
+  ClipboardCheck,
   FileText,
   Layers3,
   ListChecks,
@@ -18,6 +20,12 @@ type Page =
   | "receiving-list"
   | "receiving-create"
   | "receiving-details"
+  | "tos-list"
+  | "tos-receiving-details"
+  | "tos-shipping-details"
+  | "billing-clients"
+  | "billing-client-details"
+  | "billing-order-details"
   | "shipping-list"
   | "shipping-create"
   | "shipping-details"
@@ -48,17 +56,45 @@ type Container = {
 };
 
 type ReceivingOrderStatus = "DRAFT" | "CONFIRMED" | "COMPLETED";
+type ReceivingOrderContainerStatus = "IN_PROGRESS" | "FINISHED";
+
+type ReceivingOrderContainer = {
+  id: number;
+  status: ReceivingOrderContainerStatus;
+  finishedAt: string | null;
+  container: Container;
+  serviceExecutions: BillingServiceExecution[];
+};
 
 type ReceivingOrder = {
   id: number;
   number: string;
   client: Client;
+  complexService: ComplexService | null;
   createdAt: string;
   status: ReceivingOrderStatus;
-  containers: Container[];
+  containers: ReceivingOrderContainer[];
 };
 
-type ShippingOrder = ReceivingOrder;
+type ShippingOrderStatus = "CONFIRMED" | "COMPLETED";
+type ShippingOrderContainerStatus = "IN_PROGRESS" | "FINISHED";
+
+type ShippingOrderContainer = {
+  id: number;
+  status: ShippingOrderContainerStatus;
+  finishedAt: string | null;
+  container: Container;
+};
+
+type ShippingOrder = {
+  id: number;
+  number: string;
+  client: Client;
+  createdAt: string;
+  status: ShippingOrderStatus;
+  completedAt: string | null;
+  containers: ShippingOrderContainer[];
+};
 
 type OwnerChangeOrder = {
   id: number;
@@ -82,8 +118,18 @@ type ContainerOwnerHistory = {
   sourceLabel: string | null;
   validFrom: string;
   validTo: string | null;
+  storageDays: number;
   createdAt: string;
   createdBy: string | null;
+};
+
+type CurrentContainerOwner = {
+  container: Container;
+  client: Client;
+  validFrom: string;
+  operationType: ContainerOwnerHistory["operationType"];
+  sourceId: number;
+  storageDays: number;
 };
 
 type BillingOperation = {
@@ -116,6 +162,15 @@ type ComplexService = {
   items: ComplexServiceItem[];
 };
 
+type BillingServiceExecution = {
+  id: number;
+  service: BillingService;
+  quantity: number;
+  amount: number;
+  source: "TOS" | "SYSTEM";
+  performedAt: string;
+};
+
 type ComplexServiceFormItem = {
   serviceId: string;
   operationCount: string;
@@ -131,18 +186,25 @@ function App() {
   const [ownerChangeOrders, setOwnerChangeOrders] = React.useState<OwnerChangeOrder[]>([]);
   const [selectedOwnerContainer, setSelectedOwnerContainer] = React.useState<Container | null>(null);
   const [selectedOwnerHistory, setSelectedOwnerHistory] = React.useState<ContainerOwnerHistory[]>([]);
+  const [currentContainerOwners, setCurrentContainerOwners] = React.useState<CurrentContainerOwner[]>([]);
+  const [containerOwnerHistory, setContainerOwnerHistory] = React.useState<ContainerOwnerHistory[]>([]);
   const [containers, setContainers] = React.useState<Container[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
   const [billingOperations, setBillingOperations] = React.useState<BillingOperation[]>([]);
   const [billingServices, setBillingServices] = React.useState<BillingService[]>([]);
   const [complexServices, setComplexServices] = React.useState<ComplexService[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
+  const [selectedTosOrderId, setSelectedTosOrderId] = React.useState<number | null>(null);
+  const [selectedTosShippingOrderId, setSelectedTosShippingOrderId] = React.useState<number | null>(null);
+  const [selectedBillingClientId, setSelectedBillingClientId] = React.useState<number | null>(null);
+  const [selectedBillingOrderId, setSelectedBillingOrderId] = React.useState<number | null>(null);
   const [selectedShippingOrderId, setSelectedShippingOrderId] = React.useState<number | null>(null);
   const [selectedOwnerChangeOrderId, setSelectedOwnerChangeOrderId] = React.useState<number | null>(null);
   const [selectedOperationId, setSelectedOperationId] = React.useState<number | null>(null);
   const [selectedServiceId, setSelectedServiceId] = React.useState<number | null>(null);
   const [selectedComplexServiceId, setSelectedComplexServiceId] = React.useState<number | null>(null);
   const [receivingClientId, setReceivingClientId] = React.useState("");
+  const [receivingComplexServiceId, setReceivingComplexServiceId] = React.useState("");
   const [receivingContainers, setReceivingContainers] = React.useState<string[]>([]);
   const [shippingClientId, setShippingClientId] = React.useState("");
   const [shippingContainers, setShippingContainers] = React.useState<string[]>([]);
@@ -164,6 +226,11 @@ function App() {
   const [isLoading, setIsLoading] = React.useState(false);
 
   const selectedReceivingOrder = receivingOrders.find((order) => order.id === selectedReceivingOrderId) ?? null;
+  const selectedTosOrder = receivingOrders.find((order) => order.id === selectedTosOrderId) ?? null;
+  const selectedTosShippingOrder =
+    shippingOrders.find((order) => order.id === selectedTosShippingOrderId) ?? null;
+  const selectedBillingClient = clients.find((client) => client.id === selectedBillingClientId) ?? null;
+  const selectedBillingOrder = receivingOrders.find((order) => order.id === selectedBillingOrderId) ?? null;
   const selectedShippingOrder = shippingOrders.find((order) => order.id === selectedShippingOrderId) ?? null;
   const selectedOwnerChangeOrder = ownerChangeOrders.find((order) => order.id === selectedOwnerChangeOrderId) ?? null;
   const selectedOperation = billingOperations.find((operation) => operation.id === selectedOperationId) ?? null;
@@ -182,6 +249,8 @@ function App() {
         ownerChangeResponse,
         containersResponse,
         clientsResponse,
+        currentOwnersResponse,
+        ownerHistoryResponse,
         operationsResponse,
         servicesResponse,
         complexServicesResponse,
@@ -191,6 +260,8 @@ function App() {
         fetch(`${API_BASE}/container-owner-change-orders`),
         fetch(`${API_BASE}/containers`),
         fetch(`${API_BASE}/clients`),
+        fetch(`${API_BASE}/containers/owners/current`),
+        fetch(`${API_BASE}/containers/owners/history`),
         fetch(`${API_BASE}/operations`),
         fetch(`${API_BASE}/services`),
         fetch(`${API_BASE}/complex-services`),
@@ -202,6 +273,8 @@ function App() {
         !ownerChangeResponse.ok ||
         !containersResponse.ok ||
         !clientsResponse.ok ||
+        !currentOwnersResponse.ok ||
+        !ownerHistoryResponse.ok ||
         !operationsResponse.ok ||
         !servicesResponse.ok ||
         !complexServicesResponse.ok
@@ -214,6 +287,8 @@ function App() {
       setOwnerChangeOrders(await ownerChangeResponse.json());
       setContainers(await containersResponse.json());
       setClients(await clientsResponse.json());
+      setCurrentContainerOwners(await currentOwnersResponse.json());
+      setContainerOwnerHistory(await ownerHistoryResponse.json());
       setBillingOperations(await operationsResponse.json());
       setBillingServices(await servicesResponse.json());
       setComplexServices(await complexServicesResponse.json());
@@ -237,6 +312,11 @@ function App() {
       return;
     }
 
+    if (!receivingComplexServiceId) {
+      setError("Выберите комплексную услугу");
+      return;
+    }
+
     if (receivingContainers.length === 0) {
       setError("Выберите хотя бы один КТК");
       return;
@@ -247,6 +327,7 @@ function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: Number(receivingClientId),
+        complexServiceId: Number(receivingComplexServiceId),
         containerNumbers: receivingContainers,
       }),
     });
@@ -258,6 +339,7 @@ function App() {
 
     const createdOrder: ReceivingOrder = await response.json();
     setReceivingClientId("");
+    setReceivingComplexServiceId("");
     setReceivingContainers([]);
     setIsReceivingDropdownOpen(false);
     await loadData();
@@ -281,6 +363,83 @@ function App() {
     await loadData();
     setSelectedReceivingOrderId(confirmedOrder.id);
     setPage("receiving-details");
+  }
+
+  async function finishReceivingOrderContainer(orderId: number, linkId: number) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/receiving-orders/${orderId}/containers/${linkId}/finish`, {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось принять КТК в TOS"));
+      return;
+    }
+
+    const updatedOrder: ReceivingOrder = await response.json();
+    await loadData();
+    setSelectedTosOrderId(updatedOrder.id);
+    setPage("tos-receiving-details");
+  }
+
+  async function finishTosService(orderId: number, linkId: number, serviceId: number) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/receiving-orders/${orderId}/containers/${linkId}/services/${serviceId}/finish`, {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось выполнить услугу в TOS"));
+      return;
+    }
+
+    const updatedOrder: ReceivingOrder = await response.json();
+    await loadData();
+    setSelectedTosOrderId(updatedOrder.id);
+    setPage("tos-receiving-details");
+  }
+
+  async function finishShippingOrderContainer(orderId: number, linkId: number) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/shipping-orders/${orderId}/containers/${linkId}/finish`, {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось отметить вывоз КТК в TOS"));
+      return;
+    }
+
+    const updatedOrder: ShippingOrder = await response.json();
+    await loadData();
+    setSelectedTosShippingOrderId(updatedOrder.id);
+    setPage("tos-shipping-details");
+  }
+
+  async function updateContainerStorageDays(containerId: number, storageDays: number) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/containers/${containerId}/owner-storage-days`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storageDays: Math.max(storageDays, 0) }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось обновить дни хранения"));
+      return;
+    }
+
+    await loadData();
+    if (selectedOwnerContainer?.id === containerId) {
+      const historyResponse = await fetch(`${API_BASE}/containers/${containerId}/owner-history`);
+      if (historyResponse.ok) {
+        setSelectedOwnerHistory(await historyResponse.json());
+      }
+    }
   }
 
   async function createOwnerChangeOrder(event: React.FormEvent<HTMLFormElement>) {
@@ -837,6 +996,14 @@ function App() {
             <Repeat2 size={18} />
             <span>Заявки на смену владельца КТК</span>
           </button>
+          <button className={page.startsWith("tos") ? "active" : ""} type="button" onClick={() => setPage("tos-list")}>
+            <ClipboardCheck size={18} />
+            <span>TOS</span>
+          </button>
+          <button className={page.startsWith("billing") ? "active" : ""} type="button" onClick={() => setPage("billing-clients")}>
+            <Calculator size={18} />
+            <span>Биллинг</span>
+          </button>
           <button
             className={page.startsWith("shipping") ? "active" : ""}
             type="button"
@@ -899,12 +1066,15 @@ function App() {
           <CreateReceivingOrderPage
             clients={clients}
             containers={containers}
+            complexServices={complexServices}
             clientId={receivingClientId}
+            complexServiceId={receivingComplexServiceId}
             selectedContainers={receivingContainers}
             isContainerDropdownOpen={isReceivingDropdownOpen}
             onBack={() => setPage("receiving-list")}
             onSubmit={createReceivingOrder}
             onClientChange={setReceivingClientId}
+            onComplexServiceChange={setReceivingComplexServiceId}
             onContainersChange={setReceivingContainers}
             onToggleContainer={toggleReceivingContainer}
             onToggleContainerDropdown={() => setIsReceivingDropdownOpen((value) => !value)}
@@ -918,6 +1088,74 @@ function App() {
             onBack={() => setPage("receiving-list")}
             onCreate={() => setPage("receiving-create")}
             onConfirm={confirmReceivingOrder}
+          />
+        )}
+
+        {page === "tos-list" && (
+          <TosOrdersListPage
+            receivingOrders={receivingOrders.filter((order) => order.status === "CONFIRMED" || order.status === "COMPLETED")}
+            shippingOrders={shippingOrders.filter((order) => order.status === "CONFIRMED" || order.status === "COMPLETED")}
+            isLoading={isLoading}
+            onOpenReceiving={(order) => {
+              setSelectedTosOrderId(order.id);
+              setPage("tos-receiving-details");
+            }}
+            onOpenShipping={(order) => {
+              setSelectedTosShippingOrderId(order.id);
+              setPage("tos-shipping-details");
+            }}
+          />
+        )}
+
+        {page === "tos-receiving-details" && (
+          <TosOrderDetailsPage
+            order={selectedTosOrder}
+            onBack={() => setPage("tos-list")}
+            onFinishContainer={finishReceivingOrderContainer}
+            onFinishService={finishTosService}
+          />
+        )}
+
+        {page === "tos-shipping-details" && (
+          <TosShippingOrderDetailsPage
+            order={selectedTosShippingOrder}
+            onBack={() => setPage("tos-list")}
+            onFinishContainer={finishShippingOrderContainer}
+          />
+        )}
+
+        {page === "billing-clients" && (
+          <BillingClientsPage
+            orders={receivingOrders}
+            shippingOrders={shippingOrders}
+            ownerHistory={containerOwnerHistory}
+            containers={containers}
+            onOpenClient={(clientId) => {
+              setSelectedBillingClientId(clientId);
+              setSelectedBillingOrderId(null);
+              setPage("billing-client-details");
+            }}
+          />
+        )}
+
+        {page === "billing-client-details" && (
+          <BillingClientDetailsPage
+            client={selectedBillingClient}
+            orders={receivingOrders}
+            shippingOrders={shippingOrders}
+            ownerHistory={containerOwnerHistory}
+            containers={containers}
+            onBack={() => setPage("billing-clients")}
+          />
+        )}
+
+        {page === "billing-order-details" && (
+          <BillingOrderDetailsPage
+            order={selectedBillingOrder}
+            shippingOrders={shippingOrders}
+            ownerHistory={containerOwnerHistory}
+            containers={containers}
+            onBack={() => setPage("billing-client-details")}
           />
         )}
 
@@ -936,12 +1174,15 @@ function App() {
         {page === "shipping-create" && (
           <CreateShippingOrderPage
             clients={clients}
-            containers={containers}
+            currentOwners={currentContainerOwners}
             clientId={shippingClientId}
             selectedContainers={shippingContainers}
             onBack={() => setPage("shipping-list")}
             onSubmit={createShippingOrder}
-            onClientChange={setShippingClientId}
+            onClientChange={(value) => {
+              setShippingClientId(value);
+              setShippingContainers([]);
+            }}
             onContainersChange={setShippingContainers}
           />
         )}
@@ -999,6 +1240,7 @@ function App() {
             history={selectedOwnerHistory}
             onBack={() => setPage("containers-list")}
             onOpenSource={openSource}
+            onStorageDaysChange={updateContainerStorageDays}
           />
         )}
 
@@ -1177,11 +1419,79 @@ function ReceivingOrdersListPage({
                 <td>
                   <StatusBadge status={order.status} />
                 </td>
-                <td>{order.containers.map((container) => container.number).join(", ")}</td>
+                <td>{order.containers.map((link) => link.container.number).join(", ")}</td>
                 <td>{formatDateTime(order.createdAt)}</td>
               </tr>
             ))}
             {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function TosOrdersListPage({
+  receivingOrders,
+  shippingOrders,
+  isLoading,
+  onOpenReceiving,
+  onOpenShipping,
+}: {
+  receivingOrders: ReceivingOrder[];
+  shippingOrders: ShippingOrder[];
+  isLoading: boolean;
+  onOpenReceiving: (order: ReceivingOrder) => void;
+  onOpenShipping: (order: ShippingOrder) => void;
+}) {
+  const hasOrders = receivingOrders.length > 0 || shippingOrders.length > 0;
+
+  return (
+    <>
+      <PageHead title="TOS" />
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Тип", "Номер заявки", "Клиент", "Статус TOS", "КТК", "Дата создания"]}>
+            {receivingOrders.map((order) => {
+              const finishedCount = order.containers.filter((link) => link.status === "FINISHED").length;
+
+              return (
+                <tr className="clickable-row" key={`receiving-${order.id}`} onClick={() => onOpenReceiving(order)}>
+                  <td>Поставка</td>
+                  <td>{order.number}</td>
+                  <td>{order.client.name}</td>
+                  <td>
+                    <TosStatusBadge order={order} />
+                  </td>
+                  <td>
+                    {finishedCount} из {order.containers.length}
+                  </td>
+                  <td>{formatDateTime(order.createdAt)}</td>
+                </tr>
+              );
+            })}
+            {shippingOrders.map((order) => {
+              const finishedCount = order.containers.filter((link) => link.status === "FINISHED").length;
+
+              return (
+                <tr className="clickable-row" key={`shipping-${order.id}`} onClick={() => onOpenShipping(order)}>
+                  <td>Вывоз</td>
+                  <td>{order.number}</td>
+                  <td>{order.client.name}</td>
+                  <td>
+                    <ShippingStatusBadge status={order.status} />
+                  </td>
+                  <td>
+                    {finishedCount} из {order.containers.length}
+                  </td>
+                  <td>{formatDateTime(order.createdAt)}</td>
+                </tr>
+              );
+            })}
+            {!hasOrders && (
+              <EmptyRow colSpan={6} text={isLoading ? "Загрузка..." : "Нет заявок на выполнение"} />
+            )}
           </OrdersTable>
         </PageCard>
       </div>
@@ -1210,16 +1520,19 @@ function ShippingOrdersListPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Номер заявки", "Клиент", "КТК", "Дата создания"]}>
+          <OrdersTable columns={["Номер заявки", "Клиент", "Статус", "КТК", "Дата создания"]}>
             {orders.map((order) => (
               <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
                 <td>{order.number}</td>
                 <td>{order.client.name}</td>
-                <td>{order.containers.map((container) => container.number).join(", ")}</td>
+                <td>
+                  <ShippingStatusBadge status={order.status} />
+                </td>
+                <td>{order.containers.map((link) => link.container.number).join(", ")}</td>
                 <td>{formatDateTime(order.createdAt)}</td>
               </tr>
             ))}
-            {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+            {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -1762,15 +2075,18 @@ function ContainerOwnerDetailsPage({
   history,
   onBack,
   onOpenSource,
+  onStorageDaysChange,
 }: {
   container: Container | null;
   history: ContainerOwnerHistory[];
   onBack: () => void;
   onOpenSource: (history: ContainerOwnerHistory) => void;
+  onStorageDaysChange: (containerId: number, storageDays: number) => void;
 }) {
   if (!container) {
     return <NotSelected title="КТК не выбран" onBack={onBack} />;
   }
+  const activeOwner = history.find((item) => item.validTo === null) ?? null;
 
   return (
     <>
@@ -1778,9 +2094,43 @@ function ContainerOwnerDetailsPage({
         <BackButton onClick={onBack} />
       </PageHead>
 
+      <div className="billing-controls">
+        <PageCard>
+          <div className="billing-days-control">
+            <div>
+              <span>Дней хранения</span>
+              <strong>{activeOwner ? activeOwner.storageDays : "Закрыто"}</strong>
+            </div>
+            <div className="billing-stepper">
+              <button
+                type="button"
+                disabled={!activeOwner}
+                onClick={() => activeOwner && onStorageDaysChange(container.id, activeOwner.storageDays - 1)}
+              >
+                -
+              </button>
+              <input
+                min={0}
+                type="number"
+                disabled={!activeOwner}
+                value={activeOwner?.storageDays ?? 0}
+                onChange={(event) => onStorageDaysChange(container.id, Number(event.target.value) || 0)}
+              />
+              <button
+                type="button"
+                disabled={!activeOwner}
+                onClick={() => activeOwner && onStorageDaysChange(container.id, activeOwner.storageDays + 1)}
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </PageCard>
+      </div>
+
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дата"]}>
+          <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дней хранения", "Дата"]}>
             {history.map((item) => (
               <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
                 <td>{item.client.name}</td>
@@ -1794,10 +2144,11 @@ function ContainerOwnerDetailsPage({
                     "-"
                   )}
                 </td>
+                <td>{item.storageDays}</td>
                 <td>{formatDateTime(item.validFrom)}</td>
               </tr>
             ))}
-            {history.length === 0 && <EmptyRow colSpan={4} text="Истории владения пока нет" />}
+            {history.length === 0 && <EmptyRow colSpan={5} text="Истории владения пока нет" />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -1808,12 +2159,15 @@ function ContainerOwnerDetailsPage({
 function CreateReceivingOrderPage(props: {
   clients: Client[];
   containers: Container[];
+  complexServices: ComplexService[];
   clientId: string;
+  complexServiceId: string;
   selectedContainers: string[];
   isContainerDropdownOpen: boolean;
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClientChange: (value: string) => void;
+  onComplexServiceChange: (value: string) => void;
   onContainersChange: (value: string[]) => void;
   onToggleContainer: (number: string) => void;
   onToggleContainerDropdown: () => void;
@@ -1841,6 +2195,16 @@ function CreateReceivingOrderPage(props: {
               options={props.clients.map((client) => ({ value: client.id, label: client.name }))}
               onChange={(value) => props.onClientChange(value ? String(value) : "")}
             />
+            <Select
+              label="Комплексная услуга"
+              placeholder=" "
+              value={props.complexServiceId ? Number(props.complexServiceId) : undefined}
+              options={props.complexServices.map((complexService) => ({
+                value: complexService.id,
+                label: complexService.name,
+              }))}
+              onChange={(value) => props.onComplexServiceChange(value ? String(value) : "")}
+            />
             <SelectMulti
               label="КТК"
               placeholder=" "
@@ -1863,7 +2227,7 @@ function CreateReceivingOrderPage(props: {
 
 function CreateShippingOrderPage(props: {
   clients: Client[];
-  containers: Container[];
+  currentOwners: CurrentContainerOwner[];
   clientId: string;
   selectedContainers: string[];
   onBack: () => void;
@@ -1871,7 +2235,12 @@ function CreateShippingOrderPage(props: {
   onClientChange: (value: string) => void;
   onContainersChange: (value: string[]) => void;
 }) {
-  const containerOptions = props.containers.map((container) => ({
+  const availableContainers = props.clientId
+    ? props.currentOwners
+        .filter((owner) => owner.client.id === Number(props.clientId))
+        .map((owner) => owner.container)
+    : [];
+  const containerOptions = availableContainers.map((container) => ({
     value: container.number,
     label: container.number,
   }));
@@ -1895,7 +2264,7 @@ function CreateShippingOrderPage(props: {
             />
             <SelectMulti
               label="КТК"
-              placeholder=" "
+              placeholder={props.clientId ? " " : "Сначала выберите клиента"}
               value={props.selectedContainers}
               options={containerOptions}
               selectAllLabel="Выбрать все КТК"
@@ -2017,8 +2386,313 @@ function ReceivingOrderDetailsPage({
             </div>
 
             <h2>КТК в заявке</h2>
-            <ContainerChips containers={order.containers} />
+            <ContainerChips containers={order.containers.map((link) => link.container)} />
           </section>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function TosOrderDetailsPage({
+  order,
+  onBack,
+  onFinishContainer,
+  onFinishService,
+}: {
+  order: ReceivingOrder | null;
+  onBack: () => void;
+  onFinishContainer: (orderId: number, linkId: number) => void;
+  onFinishService: (orderId: number, linkId: number, serviceId: number) => void;
+}) {
+  if (!order) {
+    return <NotSelected title="Заявка не выбрана" onBack={onBack} />;
+  }
+
+  return (
+    <>
+      <PageHead title={`TOS: заявка ${order.number}`}>
+        <div className="head-actions">
+          <UikitBackButton onClick={onBack} />
+        </div>
+      </PageHead>
+
+      <div className="uikit-details-card tos-details-card">
+        <PageCard>
+          <section className="uikit-details">
+            <div className="detail-grid">
+              <DetailItem label="Номер заявки" value={order.number} />
+              <DetailItem label="Клиент" value={order.client.name} />
+              <DetailItem label="Комплексная услуга" value={order.complexService?.name ?? "-"} />
+              <DetailItem label="Статус TOS" value={tosOrderStatusLabel(order)} />
+              <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
+            </div>
+
+            <h2>КТК в заявке</h2>
+            <div className="tos-container-list">
+              {order.containers.map((link) => (
+                <div className="tos-container-row" key={link.id}>
+                  <div className="tos-container-summary">
+                    <div>
+                      <strong>{link.container.number}</strong>
+                      <span>{receivingOrderContainerStatusLabel(link.status)}</span>
+                    </div>
+                    <BaseButton
+                      className="tos-action-button"
+                      buttonType={ButtonType.default}
+                      isDisabled={link.status === "FINISHED"}
+                      onClick={() => onFinishContainer(order.id, link.id)}
+                    >
+                      Принят
+                    </BaseButton>
+                  </div>
+                  <div className="tos-service-list">
+                    {oneTimeComplexServiceItems(order).map((item) => {
+                      const execution = link.serviceExecutions.find(
+                        (currentExecution) => currentExecution.service.id === item.service.id,
+                      );
+                      const requiredQuantity = item.operationCount ?? 1;
+                      const completedQuantity = execution?.quantity ?? 0;
+                      const isFullyFinished = completedQuantity >= requiredQuantity;
+
+                      return (
+                        <div className="tos-service-row" key={item.id}>
+                          <div>
+                            <strong>{item.service.name}</strong>
+                            <span>
+                              {execution
+                                ? `${completedQuantity} из ${requiredQuantity}, ${formatMoney(execution.amount)}`
+                                : `0 из ${requiredQuantity}`}
+                            </span>
+                          </div>
+                          <BaseButton
+                            className="tos-action-button"
+                            buttonType={ButtonType.default}
+                            isDisabled={link.status !== "FINISHED" || isFullyFinished}
+                            onClick={() => onFinishService(order.id, link.id, item.service.id)}
+                          >
+                            Выполнить
+                          </BaseButton>
+                        </div>
+                      );
+                    })}
+                    {oneTimeComplexServiceItems(order).length === 0 && (
+                      <p className="muted">В комплексной услуге нет единоразовых услуг</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function TosShippingOrderDetailsPage({
+  order,
+  onBack,
+  onFinishContainer,
+}: {
+  order: ShippingOrder | null;
+  onBack: () => void;
+  onFinishContainer: (orderId: number, linkId: number) => void;
+}) {
+  if (!order) {
+    return <NotSelected title="Заявка не выбрана" onBack={onBack} />;
+  }
+
+  return (
+    <>
+      <PageHead title={`TOS: вывоз ${order.number}`}>
+        <div className="head-actions">
+          <UikitBackButton onClick={onBack} />
+        </div>
+      </PageHead>
+
+      <div className="uikit-details-card tos-details-card">
+        <PageCard>
+          <section className="uikit-details">
+            <div className="detail-grid">
+              <DetailItem label="Номер заявки" value={order.number} />
+              <DetailItem label="Клиент" value={order.client.name} />
+              <DetailItem label="Статус TOS" value={shippingOrderStatusLabel(order.status)} />
+              <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
+              <DetailItem label="Дата выполнения" value={order.completedAt ? formatDateTime(order.completedAt) : "-"} />
+            </div>
+
+            <h2>КТК в заявке</h2>
+            <div className="tos-container-list">
+              {order.containers.map((link) => (
+                <div className="tos-container-row" key={link.id}>
+                  <div className="tos-container-summary">
+                    <div>
+                      <strong>{link.container.number}</strong>
+                      <span>{shippingOrderContainerStatusLabel(link.status)}</span>
+                    </div>
+                    <BaseButton
+                      className="tos-action-button"
+                      buttonType={ButtonType.default}
+                      isDisabled={link.status === "FINISHED"}
+                      onClick={() => onFinishContainer(order.id, link.id)}
+                    >
+                      Вывезен
+                    </BaseButton>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function BillingClientsPage({
+  orders,
+  shippingOrders,
+  ownerHistory,
+  containers,
+  onOpenClient,
+}: {
+  orders: ReceivingOrder[];
+  shippingOrders: ShippingOrder[];
+  ownerHistory: ContainerOwnerHistory[];
+  containers: Container[];
+  onOpenClient: (clientId: number) => void;
+}) {
+  const rows = billingRows(orders, shippingOrders, ownerHistory, containers);
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  const clients = billingClientSummaries(orders, rows);
+
+  return (
+    <>
+      <PageHead title="Биллинг" />
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Клиент", "Количество услуг", "Начислено"]}>
+            {clients.map((client) => (
+              <tr className="clickable-row" key={client.clientId} onClick={() => onOpenClient(client.clientId)}>
+                <td>{client.clientName}</td>
+                <td>{client.serviceCount}</td>
+                <td>{formatMoney(client.amount)}</td>
+              </tr>
+            ))}
+            {clients.length === 0 && <EmptyRow colSpan={3} text="Начислений пока нет" />}
+          </OrdersTable>
+          <div className="billing-total">Итого: {formatMoney(total)}</div>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function BillingClientDetailsPage({
+  client,
+  orders,
+  shippingOrders,
+  ownerHistory,
+  containers,
+  onBack,
+}: {
+  client: Client | null;
+  orders: ReceivingOrder[];
+  shippingOrders: ShippingOrder[];
+  ownerHistory: ContainerOwnerHistory[];
+  containers: Container[];
+  onBack: () => void;
+}) {
+  if (!client) {
+    return <NotSelected title="Клиент не выбран" onBack={onBack} />;
+  }
+
+  const rows = billingRows(orders, shippingOrders, ownerHistory, containers).filter((row) => row.clientId === client.id);
+  const serviceSummaries = billingServiceSummaries(rows);
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+
+  return (
+    <>
+      <PageHead title={`Биллинг: ${client.name}`}>
+        <UikitBackButton onClick={onBack} />
+      </PageHead>
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Услуга", "Тип", "Количество", "Начислено"]}>
+            {serviceSummaries.map((service) => (
+              <tr key={`${service.serviceName}-${service.serviceType}`}>
+                <td>{service.serviceName}</td>
+                <td>{service.serviceType}</td>
+                <td>{service.quantity}</td>
+                <td>{formatMoney(service.amount)}</td>
+              </tr>
+            ))}
+            {serviceSummaries.length === 0 && <EmptyRow colSpan={4} text="У клиента пока нет начислений" />}
+          </OrdersTable>
+          <div className="billing-total">Итого по клиенту: {formatMoney(total)}</div>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function BillingOrderDetailsPage({
+  order,
+  shippingOrders,
+  ownerHistory,
+  containers,
+  onBack,
+}: {
+  order: ReceivingOrder | null;
+  shippingOrders: ShippingOrder[];
+  ownerHistory: ContainerOwnerHistory[];
+  containers: Container[];
+  onBack: () => void;
+}) {
+  if (!order) {
+    return <NotSelected title="Заявка не выбрана" onBack={onBack} />;
+  }
+
+  const rows = billingRows([order], shippingOrders, ownerHistory, containers);
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+
+  return (
+    <>
+      <PageHead title={`Биллинг по заявке ${order.number}`}>
+        <UikitBackButton onClick={onBack} />
+      </PageHead>
+
+      <div className="uikit-details-card tos-details-card">
+        <PageCard>
+          <section className="uikit-details">
+            <div className="detail-grid">
+              <DetailItem label="Клиент" value={order.client.name} />
+              <DetailItem label="Комплексная услуга" value={order.complexService?.name ?? "-"} />
+              <DetailItem label="Статус заявки" value={receivingOrderStatusLabel(order.status)} />
+              <DetailItem label="КТК" value={String(order.containers.length)} />
+            </div>
+          </section>
+        </PageCard>
+      </div>
+
+      <div className="uikit-table-card billing-order-table">
+        <PageCard>
+          <OrdersTable columns={["КТК", "Услуга", "Тип", "Расчет", "Сумма"]}>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td>{row.containerNumber}</td>
+                <td>{row.serviceName}</td>
+                <td>{row.serviceType}</td>
+                <td>{row.description}</td>
+                <td>{formatMoney(row.amount)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && <EmptyRow colSpan={5} text="По заявке пока нет начислений" />}
+          </OrdersTable>
+          <div className="billing-total">Итого по заявке: {formatMoney(total)}</div>
         </PageCard>
       </div>
     </>
@@ -2055,11 +2729,13 @@ function ShippingOrderDetailsPage({
             <div className="detail-grid">
               <DetailItem label="Номер заявки" value={order.number} />
               <DetailItem label="Клиент" value={order.client.name} />
+              <DetailItem label="Статус" value={shippingOrderStatusLabel(order.status)} />
               <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
+              <DetailItem label="Дата выполнения" value={order.completedAt ? formatDateTime(order.completedAt) : "-"} />
             </div>
 
             <h2>КТК в заявке</h2>
-            <ContainerChips containers={order.containers} />
+            <ContainerChips containers={order.containers.map((link) => link.container)} />
           </section>
         </PageCard>
       </div>
@@ -2149,6 +2825,16 @@ function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
 
 function StatusBadge({ status }: { status: ReceivingOrderStatus }) {
   return <span className={`status-badge status-badge-${status.toLowerCase()}`}>{receivingOrderStatusLabel(status)}</span>;
+}
+
+function TosStatusBadge({ order }: { order: ReceivingOrder }) {
+  return (
+    <span className={`status-badge status-badge-${order.status.toLowerCase()}`}>{tosOrderStatusLabel(order)}</span>
+  );
+}
+
+function ShippingStatusBadge({ status }: { status: ShippingOrderStatus }) {
+  return <span className={`status-badge status-badge-${status.toLowerCase()}`}>{shippingOrderStatusLabel(status)}</span>;
 }
 
 function ClientSelect({
@@ -2308,6 +2994,239 @@ function receivingOrderStatusLabel(status: ReceivingOrderStatus) {
     case "COMPLETED":
       return "Выполнена";
   }
+}
+
+function tosOrderStatusLabel(order: ReceivingOrder) {
+  if (order.status === "COMPLETED") {
+    return "Выполнена";
+  }
+
+  return "На выполнение";
+}
+
+function receivingOrderContainerStatusLabel(status: ReceivingOrderContainerStatus) {
+  switch (status) {
+    case "IN_PROGRESS":
+      return "На выполнение";
+    case "FINISHED":
+      return "Принят";
+  }
+}
+
+function shippingOrderStatusLabel(status: ShippingOrderStatus) {
+  switch (status) {
+    case "CONFIRMED":
+      return "На выполнение";
+    case "COMPLETED":
+      return "Выполнена";
+  }
+}
+
+function shippingOrderContainerStatusLabel(status: ShippingOrderContainerStatus) {
+  switch (status) {
+    case "IN_PROGRESS":
+      return "На выполнение";
+    case "FINISHED":
+      return "Вывезен";
+  }
+}
+
+function oneTimeComplexServiceItems(order: ReceivingOrder) {
+  return order.complexService?.items.filter((item) => item.service.serviceType === "ONE_TIME") ?? [];
+}
+
+function continuousComplexServiceItems(order: ReceivingOrder) {
+  return order.complexService?.items.filter((item) => item.service.serviceType === "CONTINUOUS") ?? [];
+}
+
+type BillingRow = {
+  key: string;
+  clientId: number;
+  clientName: string;
+  orderId: number;
+  orderNumber: string;
+  containerId: number;
+  containerNumber: string;
+  serviceName: string;
+  serviceType: string;
+  quantity: number;
+  description: string;
+  amount: number;
+};
+
+function billingRows(
+  orders: ReceivingOrder[],
+  shippingOrders: ShippingOrder[],
+  ownerHistory: ContainerOwnerHistory[],
+  containers: Container[],
+): BillingRow[] {
+  const rows: BillingRow[] = [];
+
+  for (const order of orders) {
+    for (const link of order.containers) {
+      for (const execution of link.serviceExecutions) {
+        rows.push({
+          key: `execution-${execution.id}`,
+          clientId: order.client.id,
+          clientName: order.client.name,
+          orderId: order.id,
+          orderNumber: order.number,
+          containerId: link.container.id,
+          containerNumber: link.container.number,
+          serviceName: execution.service.name,
+          serviceType: serviceTypeLabel(execution.service.serviceType),
+          quantity: execution.quantity,
+          description: `${execution.quantity} оп. × ${formatMoney(execution.service.cost)} × ${order.complexService?.coefficient ?? 1}`,
+          amount: execution.amount,
+        });
+      }
+
+    }
+  }
+
+  for (const owner of ownerHistory) {
+    const storageDays = owner.storageDays;
+    if (storageDays === 0) {
+      continue;
+    }
+
+    const container = containers.find((currentContainer) => currentContainer.id === owner.containerId);
+    const sourceOrder = latestReceivingOrderForContainer(orders, owner.containerId);
+    if (!container) {
+      continue;
+    }
+    if (!sourceOrder) {
+      continue;
+    }
+
+    for (const item of continuousComplexServiceItems(sourceOrder)) {
+      const graceDays = Math.min(storageDays, item.durationDays ?? 0);
+      const fullPriceDays = Math.max(storageDays - (item.durationDays ?? 0), 0);
+      const coefficient = owner.operationType === "RECEIVING" ? sourceOrder.complexService?.coefficient ?? 1 : 1;
+      const amount =
+        owner.operationType === "RECEIVING"
+          ? graceDays * item.service.cost * coefficient + fullPriceDays * item.service.cost
+          : storageDays * item.service.cost;
+      const description =
+        owner.operationType === "RECEIVING"
+          ? `${graceDays} льготн. дн. × ${formatMoney(item.service.cost)} × ${coefficient} + ${fullPriceDays} дн. × ${formatMoney(item.service.cost)}`
+          : `${storageDays} дн. × ${formatMoney(item.service.cost)}`;
+
+      rows.push({
+        key: `storage-${owner.containerId}-${item.service.id}-${owner.validFrom}-${storageDays}`,
+        clientId: owner.client.id,
+        clientName: owner.client.name,
+        orderId: sourceOrder.id,
+        orderNumber: sourceOrder.number,
+        containerId: owner.containerId,
+        containerNumber: container.number,
+        serviceName: item.service.name,
+        serviceType: serviceTypeLabel(item.service.serviceType),
+        quantity: storageDays,
+        description,
+        amount,
+      });
+    }
+  }
+
+  return rows;
+}
+
+function latestReceivingOrderForContainer(orders: ReceivingOrder[], containerId: number) {
+  return orders
+    .filter((order) => order.containers.some((link) => link.container.id === containerId))
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
+}
+
+type BillingClientSummary = {
+  clientId: number;
+  clientName: string;
+  orderCount: number;
+  serviceCount: number;
+  amount: number;
+};
+
+function billingClientSummaries(orders: ReceivingOrder[], rows: BillingRow[]): BillingClientSummary[] {
+  const summaries = new Map<number, BillingClientSummary>();
+
+  for (const row of rows) {
+    const summary =
+      summaries.get(row.clientId) ??
+      {
+        clientId: row.clientId,
+        clientName: row.clientName,
+        orderCount: 0,
+        serviceCount: 0,
+        amount: 0,
+      };
+    summary.amount += row.amount;
+    summaries.set(row.clientId, summary);
+  }
+
+  for (const summary of summaries.values()) {
+    const clientOrders = orders.filter((order) => order.client.id === summary.clientId);
+    summary.orderCount = clientOrders.length;
+    summary.serviceCount = rows
+      .filter((row) => row.clientId === summary.clientId)
+      .reduce((count, row) => count + row.quantity, 0);
+  }
+
+  return [...summaries.values()].sort((left, right) => left.clientName.localeCompare(right.clientName, "ru"));
+}
+
+type BillingOrderSummary = {
+  orderId: number;
+  orderNumber: string;
+  complexServiceName: string;
+  status: ReceivingOrderStatus;
+  serviceCount: number;
+  amount: number;
+};
+
+type BillingServiceSummary = {
+  serviceName: string;
+  serviceType: string;
+  quantity: number;
+  amount: number;
+};
+
+function billingServiceSummaries(rows: BillingRow[]): BillingServiceSummary[] {
+  const summaries = new Map<string, BillingServiceSummary>();
+
+  for (const row of rows) {
+    const key = `${row.serviceName}-${row.serviceType}`;
+    const summary =
+      summaries.get(key) ??
+      {
+        serviceName: row.serviceName,
+        serviceType: row.serviceType,
+        quantity: 0,
+        amount: 0,
+      };
+    summary.quantity += row.quantity;
+    summary.amount += row.amount;
+    summaries.set(key, summary);
+  }
+
+  return [...summaries.values()].sort((left, right) => left.serviceName.localeCompare(right.serviceName, "ru"));
+}
+
+function billingOrderSummaries(orders: ReceivingOrder[], rows: BillingRow[]): BillingOrderSummary[] {
+  return orders
+    .map((order) => ({
+      orderId: order.id,
+      orderNumber: order.number,
+      complexServiceName: order.complexService?.name ?? "-",
+      status: order.status,
+      serviceCount: rows
+        .filter((row) => row.orderId === order.id)
+        .reduce((count, row) => count + row.quantity, 0),
+      amount: rows
+        .filter((row) => row.orderId === order.id)
+        .reduce((sum, row) => sum + row.amount, 0),
+    }))
+    .filter((order) => order.amount > 0)
+    .sort((left, right) => right.orderNumber.localeCompare(left.orderNumber, "ru", { numeric: true }));
 }
 
 function operationLabel(operationType: ContainerOwnerHistory["operationType"]) {
