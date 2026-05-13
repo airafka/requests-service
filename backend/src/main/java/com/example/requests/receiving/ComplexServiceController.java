@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -86,8 +88,24 @@ public class ComplexServiceController {
     }
 
     private void fillComplexService(ComplexService complexService, String name, CreateComplexServiceDto dto) {
+        List<ComplexServiceItem> items = buildItems(dto);
         complexService.setName(name);
-        complexService.setItems(buildItems(dto));
+        complexService.setCoefficient(dto.coefficient());
+        complexService.setAmountPerContainer(amountPerContainer(items, dto.coefficient()));
+        complexService.setItems(items);
+    }
+
+    private BigDecimal amountPerContainer(List<ComplexServiceItem> items, BigDecimal coefficient) {
+        BigDecimal servicesAmount = items.stream()
+            .map(this::itemAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return servicesAmount.multiply(coefficient).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal itemAmount(ComplexServiceItem item) {
+        int quantity = item.getOperationCount() != null ? item.getOperationCount() : item.getDurationDays();
+        return item.getService().getCost().multiply(BigDecimal.valueOf(quantity));
     }
 
     private List<ComplexServiceItem> buildItems(CreateComplexServiceDto dto) {

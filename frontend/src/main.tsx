@@ -108,6 +108,8 @@ type ComplexServiceItem = {
 type ComplexService = {
   id: number;
   name: string;
+  coefficient: number;
+  amountPerContainer: number;
   items: ComplexServiceItem[];
 };
 
@@ -151,6 +153,7 @@ function App() {
   const [newServiceCost, setNewServiceCost] = React.useState("");
   const [newServiceOperationIds, setNewServiceOperationIds] = React.useState<number[]>([]);
   const [newComplexServiceName, setNewComplexServiceName] = React.useState("");
+  const [newComplexServiceCoefficient, setNewComplexServiceCoefficient] = React.useState("1");
   const [newComplexServiceItems, setNewComplexServiceItems] = React.useState<ComplexServiceFormItem[]>([]);
   const [isReceivingDropdownOpen, setIsReceivingDropdownOpen] = React.useState(false);
   const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = React.useState(false);
@@ -640,6 +643,7 @@ function App() {
   function resetComplexServiceForm() {
     setSelectedComplexServiceId(null);
     setNewComplexServiceName("");
+    setNewComplexServiceCoefficient("1");
     setNewComplexServiceItems([]);
   }
 
@@ -651,6 +655,12 @@ function App() {
 
     if (newComplexServiceItems.length === 0) {
       setError("Добавьте хотя бы одну услугу");
+      return null;
+    }
+
+    const coefficient = Number(newComplexServiceCoefficient.replace(",", "."));
+    if (!Number.isFinite(coefficient) || coefficient < 0) {
+      setError("Введите корректный коэффициент");
       return null;
     }
 
@@ -694,6 +704,7 @@ function App() {
 
     return {
       name: newComplexServiceName.trim(),
+      coefficient,
       items,
     };
   }
@@ -763,6 +774,7 @@ function App() {
   function openComplexService(complexService: ComplexService) {
     setSelectedComplexServiceId(complexService.id);
     setNewComplexServiceName(complexService.name);
+    setNewComplexServiceCoefficient(String(complexService.coefficient));
     setNewComplexServiceItems(
       complexService.items.map((item) => ({
         serviceId: String(item.service.id),
@@ -1084,9 +1096,11 @@ function App() {
             title="Создание комплексной услуги"
             services={billingServices}
             name={newComplexServiceName}
+            coefficient={newComplexServiceCoefficient}
             items={newComplexServiceItems}
             onBack={() => setPage("complex-services-list")}
             onNameChange={setNewComplexServiceName}
+            onCoefficientChange={setNewComplexServiceCoefficient}
             onItemsChange={setNewComplexServiceItems}
             onSubmit={createComplexService}
           />
@@ -1097,9 +1111,11 @@ function App() {
             title="Редактирование комплексной услуги"
             services={billingServices}
             name={newComplexServiceName}
+            coefficient={newComplexServiceCoefficient}
             items={newComplexServiceItems}
             onBack={() => setPage("complex-services-list")}
             onNameChange={setNewComplexServiceName}
+            onCoefficientChange={setNewComplexServiceCoefficient}
             onItemsChange={setNewComplexServiceItems}
             onSubmit={updateComplexService}
             onDelete={deleteComplexService}
@@ -1527,10 +1543,12 @@ function ComplexServicesPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Наименование", "Услуги"]}>
+          <OrdersTable columns={["Наименование", "Коэффициент", "Сумма услуг на 1 КТК", "Услуги"]}>
             {complexServices.map((complexService) => (
               <tr className="clickable-row" key={complexService.id} onClick={() => onOpen(complexService)}>
                 <td>{complexService.name}</td>
+                <td>{formatCoefficient(complexService.coefficient)}</td>
+                <td>{formatMoney(complexService.amountPerContainer)}</td>
                 <td>
                   {complexService.items
                     .map((item) => `${item.service.name} (${complexServiceItemValue(item)})`)
@@ -1539,7 +1557,7 @@ function ComplexServicesPage({
               </tr>
             ))}
             {complexServices.length === 0 && (
-              <EmptyRow colSpan={2} text={isLoading ? "Загрузка..." : "Комплексных услуг пока нет"} />
+              <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Комплексных услуг пока нет"} />
             )}
           </OrdersTable>
         </PageCard>
@@ -1552,9 +1570,11 @@ function CreateComplexServicePage({
   title,
   services,
   name,
+  coefficient,
   items,
   onBack,
   onNameChange,
+  onCoefficientChange,
   onItemsChange,
   onSubmit,
   onDelete,
@@ -1562,9 +1582,11 @@ function CreateComplexServicePage({
   title: string;
   services: BillingService[];
   name: string;
+  coefficient: string;
   items: ComplexServiceFormItem[];
   onBack: () => void;
   onNameChange: (value: string) => void;
+  onCoefficientChange: (value: string) => void;
   onItemsChange: (value: ComplexServiceFormItem[]) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onDelete?: () => void;
@@ -1573,6 +1595,7 @@ function CreateComplexServicePage({
     value: String(service.id),
     label: service.name,
   }));
+  const amountPerContainer = calculateComplexServiceAmount(services, items, coefficient);
 
   function addItem() {
     onItemsChange([...items, { serviceId: "", operationCount: "", durationDays: "" }]);
@@ -1599,6 +1622,14 @@ function CreateComplexServicePage({
             <label>
               Наименование
               <input value={name} onChange={(event) => onNameChange(event.target.value)} maxLength={180} />
+            </label>
+            <label>
+              Коэффициент
+              <input inputMode="decimal" value={coefficient} onChange={(event) => onCoefficientChange(event.target.value)} />
+            </label>
+            <label>
+              Сумма услуг на 1 КТК
+              <input value={formatMoney(amountPerContainer)} readOnly />
             </label>
 
             <div className="complex-service-items">
@@ -2257,6 +2288,39 @@ function complexServiceItemValue(item: ComplexServiceItem) {
   }
 
   return `${item.durationDays ?? 0} дн.`;
+}
+
+function calculateComplexServiceAmount(
+  services: BillingService[],
+  items: ComplexServiceFormItem[],
+  coefficientValue: string,
+) {
+  const coefficient = Number(coefficientValue.replace(",", "."));
+  const normalizedCoefficient = Number.isFinite(coefficient) && coefficient >= 0 ? coefficient : 0;
+
+  const servicesAmount = items.reduce((total, item) => {
+    const service = services.find((currentService) => currentService.id === Number(item.serviceId));
+    if (!service) {
+      return total;
+    }
+
+    const quantityValue = service.serviceType === "ONE_TIME" ? item.operationCount : item.durationDays;
+    const quantity = Number(quantityValue);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return total;
+    }
+
+    return total + service.cost * quantity;
+  }, 0);
+
+  return servicesAmount * normalizedCoefficient;
+}
+
+function formatCoefficient(value: number) {
+  return new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  }).format(value);
 }
 
 function formatMoney(value: number) {

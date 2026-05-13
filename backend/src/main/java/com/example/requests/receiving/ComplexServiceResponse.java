@@ -1,11 +1,14 @@
 package com.example.requests.receiving;
 
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 
 public record ComplexServiceResponse(
     Long id,
     String name,
+    BigDecimal coefficient,
+    BigDecimal amountPerContainer,
     List<ComplexServiceItemResponse> items
 ) {
     static ComplexServiceResponse fromEntity(ComplexService complexService) {
@@ -17,6 +20,8 @@ public record ComplexServiceResponse(
         return new ComplexServiceResponse(
             complexService.getId(),
             complexService.getName(),
+            complexService.getCoefficient(),
+            complexService.getAmountPerContainer(),
             items
         );
     }

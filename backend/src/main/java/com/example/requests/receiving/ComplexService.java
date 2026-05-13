@@ -11,6 +11,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,6 +24,12 @@ public class ComplexService {
 
     @Column(nullable = false, unique = true, length = 180)
     private String name;
+
+    @Column(nullable = false, precision = 12, scale = 4)
+    private BigDecimal coefficient = BigDecimal.ONE;
+
+    @Column(name = "amount_per_container", nullable = false, precision = 14, scale = 2)
+    private BigDecimal amountPerContainer = BigDecimal.ZERO;
 
     @OneToMany(mappedBy = "complexService", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("id ASC")
@@ -38,6 +45,22 @@ public class ComplexService {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public BigDecimal getCoefficient() {
+        return coefficient;
+    }
+
+    public void setCoefficient(BigDecimal coefficient) {
+        this.coefficient = coefficient;
+    }
+
+    public BigDecimal getAmountPerContainer() {
+        return amountPerContainer;
+    }
+
+    public void setAmountPerContainer(BigDecimal amountPerContainer) {
+        this.amountPerContainer = amountPerContainer;
     }
 
     public List<ComplexServiceItem> getItems() {
