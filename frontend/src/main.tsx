@@ -47,11 +47,14 @@ type Container = {
   number: string;
 };
 
+type ReceivingOrderStatus = "DRAFT" | "CONFIRMED" | "COMPLETED";
+
 type ReceivingOrder = {
   id: number;
   number: string;
   client: Client;
   createdAt: string;
+  status: ReceivingOrderStatus;
   containers: Container[];
 };
 
@@ -259,6 +262,24 @@ function App() {
     setIsReceivingDropdownOpen(false);
     await loadData();
     setSelectedReceivingOrderId(createdOrder.id);
+    setPage("receiving-details");
+  }
+
+  async function confirmReceivingOrder(orderId: number) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/receiving-orders/${orderId}/confirm`, {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось подтвердить заявку на поставку"));
+      return;
+    }
+
+    const confirmedOrder: ReceivingOrder = await response.json();
+    await loadData();
+    setSelectedReceivingOrderId(confirmedOrder.id);
     setPage("receiving-details");
   }
 
@@ -896,6 +917,7 @@ function App() {
             order={selectedReceivingOrder}
             onBack={() => setPage("receiving-list")}
             onCreate={() => setPage("receiving-create")}
+            onConfirm={confirmReceivingOrder}
           />
         )}
 
@@ -1147,16 +1169,19 @@ function ReceivingOrdersListPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Номер заявки", "Клиент", "КТК", "Дата создания"]}>
+          <OrdersTable columns={["Номер заявки", "Клиент", "Статус", "КТК", "Дата создания"]}>
             {orders.map((order) => (
               <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
                 <td>{order.number}</td>
                 <td>{order.client.name}</td>
+                <td>
+                  <StatusBadge status={order.status} />
+                </td>
                 <td>{order.containers.map((container) => container.number).join(", ")}</td>
                 <td>{formatDateTime(order.createdAt)}</td>
               </tr>
             ))}
-            {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+            {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -1954,10 +1979,12 @@ function ReceivingOrderDetailsPage({
   order,
   onBack,
   onCreate,
+  onConfirm,
 }: {
   order: ReceivingOrder | null;
   onBack: () => void;
   onCreate: () => void;
+  onConfirm: (orderId: number) => void;
 }) {
   if (!order) {
     return <NotSelected title="Заявка не выбрана" onBack={onBack} />;
@@ -1968,6 +1995,11 @@ function ReceivingOrderDetailsPage({
       <PageHead title={`Заявка на поставку ${order.number}`}>
         <div className="head-actions">
           <UikitBackButton onClick={onBack} />
+          {order.status === "DRAFT" && (
+            <BaseButton buttonType={ButtonType.default} onClick={() => onConfirm(order.id)}>
+              Подтвердить
+            </BaseButton>
+          )}
           <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
             Создать
           </BaseButton>
@@ -1980,6 +2012,7 @@ function ReceivingOrderDetailsPage({
             <div className="detail-grid">
               <DetailItem label="Номер заявки" value={order.number} />
               <DetailItem label="Клиент" value={order.client.name} />
+              <DetailItem label="Статус" value={receivingOrderStatusLabel(order.status)} />
               <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
             </div>
 
@@ -2112,6 +2145,10 @@ function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
       </td>
     </tr>
   );
+}
+
+function StatusBadge({ status }: { status: ReceivingOrderStatus }) {
+  return <span className={`status-badge status-badge-${status.toLowerCase()}`}>{receivingOrderStatusLabel(status)}</span>;
 }
 
 function ClientSelect({
@@ -2260,6 +2297,17 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function receivingOrderStatusLabel(status: ReceivingOrderStatus) {
+  switch (status) {
+    case "DRAFT":
+      return "Черновик";
+    case "CONFIRMED":
+      return "Подтверждена";
+    case "COMPLETED":
+      return "Выполнена";
+  }
 }
 
 function operationLabel(operationType: ContainerOwnerHistory["operationType"]) {

@@ -8,6 +8,7 @@ public record ReceivingOrderResponse(
     String number,
     ClientResponse client,
     OffsetDateTime createdAt,
+    ReceivingOrderStatus status,
     List<ContainerResponse> containers
 ) {
     static ReceivingOrderResponse fromEntity(ReceivingOrder order) {
@@ -20,6 +21,7 @@ public record ReceivingOrderResponse(
             order.getNumber(),
             ClientResponse.fromEntity(order.getClient()),
             order.getCreatedAt(),
+            order.getStatus(),
             containers
         );
     }

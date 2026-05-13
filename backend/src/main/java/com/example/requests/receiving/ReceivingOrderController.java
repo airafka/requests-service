@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,18 +24,15 @@ public class ReceivingOrderController {
     private final ReceivingOrderRepository orderRepository;
     private final ContainerRepository containerRepository;
     private final ClientRepository clientRepository;
-    private final ContainerOwnerService containerOwnerService;
 
     public ReceivingOrderController(
         ReceivingOrderRepository orderRepository,
         ContainerRepository containerRepository,
-        ClientRepository clientRepository,
-        ContainerOwnerService containerOwnerService
+        ClientRepository clientRepository
     ) {
         this.orderRepository = orderRepository;
         this.containerRepository = containerRepository;
         this.clientRepository = clientRepository;
-        this.containerOwnerService = containerOwnerService;
     }
 
     @GetMapping
@@ -73,8 +71,21 @@ public class ReceivingOrderController {
         requestedNumbers.forEach(number -> order.addContainer(containersByNumber.get(normalize(number))));
 
         ReceivingOrder saved = orderRepository.saveAndFlush(order);
-        containerOwnerService.createReceivingHistory(saved);
         return ReceivingOrderResponse.fromEntity(saved);
+    }
+
+    @PostMapping("/{id}/confirm")
+    @Transactional
+    public ReceivingOrderResponse confirm(@PathVariable Long id) {
+        ReceivingOrder order = orderRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Receiving order was not found"));
+
+        if (order.getStatus() != ReceivingOrderStatus.DRAFT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only draft receiving order can be confirmed");
+        }
+
+        order.setStatus(ReceivingOrderStatus.CONFIRMED);
+        return ReceivingOrderResponse.fromEntity(orderRepository.save(order));
     }
 
     private String nextOrderNumber() {
