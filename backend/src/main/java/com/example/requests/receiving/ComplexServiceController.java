@@ -3,6 +3,7 @@ package com.example.requests.receiving;
 import jakarta.validation.Valid;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -53,10 +55,11 @@ public class ComplexServiceController {
         }
 
         ComplexService complexService = new ComplexService();
-        fillComplexService(complexService, name, dto);
+        applyComplexService(complexService, name, dto.coefficient(), buildItems(dto));
         return ComplexServiceResponse.fromEntity(complexServiceRepository.save(complexService));
     }
 
+    @Transactional
     @PutMapping("/{id}")
     public ComplexServiceResponse update(@PathVariable Long id, @Valid @RequestBody CreateComplexServiceDto dto) {
         ComplexService complexService = complexServiceRepository.findWithItemsById(id)
@@ -69,7 +72,8 @@ public class ComplexServiceController {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Complex service already exists");
             });
 
-        fillComplexService(complexService, name, dto);
+        List<ComplexServiceItem> items = buildItems(dto);
+        updateComplexService(complexService, name, dto.coefficient(), items);
         return ComplexServiceResponse.fromEntity(complexServiceRepository.save(complexService));
     }
 
@@ -87,12 +91,49 @@ public class ComplexServiceController {
         }
     }
 
-    private void fillComplexService(ComplexService complexService, String name, CreateComplexServiceDto dto) {
-        List<ComplexServiceItem> items = buildItems(dto);
+    private void applyComplexService(
+        ComplexService complexService,
+        String name,
+        BigDecimal coefficient,
+        List<ComplexServiceItem> items
+    ) {
         complexService.setName(name);
-        complexService.setCoefficient(dto.coefficient());
-        complexService.setAmountPerContainer(amountPerContainer(items, dto.coefficient()));
+        complexService.setCoefficient(coefficient);
+        complexService.setAmountPerContainer(amountPerContainer(items, coefficient));
         complexService.setItems(items);
+    }
+
+    private void updateComplexService(
+        ComplexService complexService,
+        String name,
+        BigDecimal coefficient,
+        List<ComplexServiceItem> requestedItems
+    ) {
+        complexService.setName(name);
+        complexService.setCoefficient(coefficient);
+        complexService.setAmountPerContainer(amountPerContainer(requestedItems, coefficient));
+        syncItems(complexService, requestedItems);
+    }
+
+    private void syncItems(ComplexService complexService, List<ComplexServiceItem> requestedItems) {
+        Set<Long> requestedServiceIds = requestedItems.stream()
+            .map(item -> item.getService().getId())
+            .collect(Collectors.toSet());
+
+        complexService.getItems().removeIf(item -> !requestedServiceIds.contains(item.getService().getId()));
+
+        Map<Long, ComplexServiceItem> existingItems = complexService.getItems().stream()
+            .collect(Collectors.toMap(item -> item.getService().getId(), Function.identity()));
+
+        for (ComplexServiceItem requestedItem : requestedItems) {
+            ComplexServiceItem existingItem = existingItems.get(requestedItem.getService().getId());
+            if (existingItem == null) {
+                complexService.addItem(requestedItem);
+            } else {
+                existingItem.setOperationCount(requestedItem.getOperationCount());
+                existingItem.setDurationDays(requestedItem.getDurationDays());
+            }
+        }
     }
 
     private BigDecimal amountPerContainer(List<ComplexServiceItem> items, BigDecimal coefficient) {
