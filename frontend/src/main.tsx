@@ -8,6 +8,7 @@ import {
   CalendarDays,
   ChevronDown,
   ClipboardCheck,
+  Database,
   FileText,
   Layers3,
   ListChecks,
@@ -24,9 +25,12 @@ type Page =
   | "tos-list"
   | "tos-receiving-details"
   | "tos-shipping-details"
+  | "tos-facts"
   | "billing-clients"
   | "billing-client-details"
   | "billing-order-details"
+  | "storage-periods"
+  | "storage-accruals"
   | "shipping-list"
   | "shipping-create"
   | "shipping-details"
@@ -178,6 +182,61 @@ type BillingServiceExecution = {
   performedAt: string;
 };
 
+type TosOperationFact = {
+  id: number;
+  externalId: string | null;
+  operationId: number | null;
+  operationName: string | null;
+  operationCode: string;
+  containerId: number | null;
+  containerNumber: string;
+  receivingOrderId: number | null;
+  shippingOrderId: number | null;
+  operationTime: string;
+  quantity: number;
+  status: "RECEIVED" | "PROCESSED" | "ERROR" | "CANCELLED";
+  sourceSystem: string;
+  rawPayload: unknown;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ContainerStoragePeriod = {
+  id: number;
+  containerId: number;
+  containerNumber: string;
+  clientId: number;
+  clientName: string;
+  serviceId: number | null;
+  serviceName: string | null;
+  dateFrom: string;
+  dateTo: string | null;
+  storageDays: number;
+  status: "ACTIVE" | "CLOSED" | "CANCELLED";
+  sourceType: "RECEIVING_ORDER" | "OWNER_CHANGE_ORDER" | "SYSTEM";
+  sourceId: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ContainerStorageDailyAccrual = {
+  id: number;
+  storagePeriodId: number;
+  containerId: number;
+  containerNumber: string;
+  clientId: number;
+  clientName: string;
+  accrualDate: string;
+  serviceId: number | null;
+  serviceName: string | null;
+  quantity: number;
+  source: "SYSTEM";
+  status: "ACCRUED" | "CANCELLED";
+  createdAt: string;
+  updatedAt: string;
+};
+
 type ComplexServiceFormItem = {
   serviceId: string;
   operationCount: string;
@@ -200,6 +259,9 @@ function App() {
   const [billingOperations, setBillingOperations] = React.useState<BillingOperation[]>([]);
   const [billingServices, setBillingServices] = React.useState<BillingService[]>([]);
   const [complexServices, setComplexServices] = React.useState<ComplexService[]>([]);
+  const [tosOperationFacts, setTosOperationFacts] = React.useState<TosOperationFact[]>([]);
+  const [storagePeriods, setStoragePeriods] = React.useState<ContainerStoragePeriod[]>([]);
+  const [storageAccruals, setStorageAccruals] = React.useState<ContainerStorageDailyAccrual[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
   const [selectedTosOrderId, setSelectedTosOrderId] = React.useState<number | null>(null);
   const [selectedTosShippingOrderId, setSelectedTosShippingOrderId] = React.useState<number | null>(null);
@@ -265,6 +327,9 @@ function App() {
         operationsResponse,
         servicesResponse,
         complexServicesResponse,
+        tosFactsResponse,
+        storagePeriodsResponse,
+        storageAccrualsResponse,
       ] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
         fetch(`${API_BASE}/shipping-orders`),
@@ -276,6 +341,9 @@ function App() {
         fetch(`${API_BASE}/operations`),
         fetch(`${API_BASE}/services`),
         fetch(`${API_BASE}/complex-services`),
+        fetch(`${API_BASE}/tos-operation-facts`),
+        fetch(`${API_BASE}/storage-periods`),
+        fetch(`${API_BASE}/storage-accruals`),
       ]);
 
       if (
@@ -288,7 +356,10 @@ function App() {
         !ownerHistoryResponse.ok ||
         !operationsResponse.ok ||
         !servicesResponse.ok ||
-        !complexServicesResponse.ok
+        !complexServicesResponse.ok ||
+        !tosFactsResponse.ok ||
+        !storagePeriodsResponse.ok ||
+        !storageAccrualsResponse.ok
       ) {
         throw new Error("Не удалось загрузить данные");
       }
@@ -303,6 +374,9 @@ function App() {
       setBillingOperations(await operationsResponse.json());
       setBillingServices(await servicesResponse.json());
       setComplexServices(await complexServicesResponse.json());
+      setTosOperationFacts(await tosFactsResponse.json());
+      setStoragePeriods(await storagePeriodsResponse.json());
+      setStorageAccruals(await storageAccrualsResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неизвестная ошибка");
     } finally {
@@ -439,6 +513,24 @@ function App() {
     await loadData();
     setSelectedTosShippingOrderId(updatedOrder.id);
     setPage("tos-shipping-details");
+  }
+
+  async function accrueStorageForBillingDate() {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/storage-accruals/accrue`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: billingDate }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось начислить день хранения"));
+      return;
+    }
+
+    await loadData();
+    setPage("storage-accruals");
   }
 
   async function updateContainerStorageDays(containerId: number, storageDays: number) {
@@ -1042,9 +1134,21 @@ function App() {
             <ClipboardCheck size={18} />
             <span>TOS</span>
           </button>
+          <button className={page === "tos-facts" ? "active" : ""} type="button" onClick={() => setPage("tos-facts")}>
+            <Database size={18} />
+            <span>Журнал TOS</span>
+          </button>
           <button className={page.startsWith("billing") ? "active" : ""} type="button" onClick={() => setPage("billing-clients")}>
             <Calculator size={18} />
             <span>Биллинг</span>
+          </button>
+          <button className={page === "storage-periods" ? "active" : ""} type="button" onClick={() => setPage("storage-periods")}>
+            <Box size={18} />
+            <span>Хранение КТК</span>
+          </button>
+          <button className={page === "storage-accruals" ? "active" : ""} type="button" onClick={() => setPage("storage-accruals")}>
+            <CalendarDays size={18} />
+            <span>Начисления хранения</span>
           </button>
           <button
             className={page.startsWith("shipping") ? "active" : ""}
@@ -1176,6 +1280,10 @@ function App() {
           />
         )}
 
+        {page === "tos-facts" && (
+          <TosOperationFactsPage facts={tosOperationFacts} isLoading={isLoading} />
+        )}
+
         {page === "billing-clients" && (
           <BillingClientsPage
             orders={receivingOrders}
@@ -1211,6 +1319,19 @@ function App() {
             containers={containers}
             billingDate={billingDate}
             onBack={() => setPage("billing-client-details")}
+          />
+        )}
+
+        {page === "storage-periods" && (
+          <ContainerStoragePeriodsPage periods={storagePeriods} isLoading={isLoading} />
+        )}
+
+        {page === "storage-accruals" && (
+          <ContainerStorageAccrualsPage
+            accruals={storageAccruals}
+            isLoading={isLoading}
+            billingDate={billingDate}
+            onAccrue={accrueStorageForBillingDate}
           />
         )}
 
@@ -1555,6 +1676,114 @@ function TosOrdersListPage({
             {!hasOrders && (
               <EmptyRow colSpan={6} text={isLoading ? "Загрузка..." : "Нет заявок на выполнение"} />
             )}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function TosOperationFactsPage({
+  facts,
+  isLoading,
+}: {
+  facts: TosOperationFact[];
+  isLoading: boolean;
+}) {
+  return (
+    <>
+      <PageHead title="Журнал событий TOS" />
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Дата события", "Операция", "КТК", "Кол-во", "Источник", "Статус", "Raw payload"]}>
+            {facts.map((fact) => (
+              <tr key={fact.id}>
+                <td>{formatDateTime(fact.operationTime)}</td>
+                <td>{fact.operationName || fact.operationCode}</td>
+                <td>{fact.containerNumber}</td>
+                <td>{fact.quantity}</td>
+                <td>{fact.sourceSystem}</td>
+                <td>{tosFactStatusLabel(fact.status)}</td>
+                <td title={rawPayloadText(fact.rawPayload)}>{rawPayloadText(fact.rawPayload)}</td>
+              </tr>
+            ))}
+            {facts.length === 0 && <EmptyRow colSpan={7} text={isLoading ? "Загрузка..." : "Событий TOS пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function ContainerStoragePeriodsPage({
+  periods,
+  isLoading,
+}: {
+  periods: ContainerStoragePeriod[];
+  isLoading: boolean;
+}) {
+  return (
+    <>
+      <PageHead title="Реестр хранения КТК" />
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["КТК", "Клиент", "Услуга", "Дата начала", "Дата окончания", "Дней", "Источник", "Статус"]}>
+            {periods.map((period) => (
+              <tr key={period.id}>
+                <td>{period.containerNumber}</td>
+                <td>{period.clientName}</td>
+                <td>{period.serviceName || "-"}</td>
+                <td>{formatDate(period.dateFrom)}</td>
+                <td>{period.dateTo ? formatDate(period.dateTo) : "-"}</td>
+                <td>{period.storageDays}</td>
+                <td>{storageSourceTypeLabel(period.sourceType)}</td>
+                <td>{storagePeriodStatusLabel(period.status)}</td>
+              </tr>
+            ))}
+            {periods.length === 0 && <EmptyRow colSpan={8} text={isLoading ? "Загрузка..." : "Периодов хранения пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function ContainerStorageAccrualsPage({
+  accruals,
+  isLoading,
+  billingDate,
+  onAccrue,
+}: {
+  accruals: ContainerStorageDailyAccrual[];
+  isLoading: boolean;
+  billingDate: string;
+  onAccrue: () => void;
+}) {
+  return (
+    <>
+      <PageHead title="Журнал начисления хранения">
+        <BaseButton buttonType={ButtonType.default} onClick={onAccrue}>
+          Начислить за {formatDate(billingDate)}
+        </BaseButton>
+      </PageHead>
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Дата", "КТК", "Клиент", "Услуга", "Кол-во", "Источник", "Статус"]}>
+            {accruals.map((accrual) => (
+              <tr key={accrual.id}>
+                <td>{formatDate(accrual.accrualDate)}</td>
+                <td>{accrual.containerNumber}</td>
+                <td>{accrual.clientName}</td>
+                <td>{accrual.serviceName || "-"}</td>
+                <td>{accrual.quantity}</td>
+                <td>{accrual.source}</td>
+                <td>{storageAccrualStatusLabel(accrual.status)}</td>
+              </tr>
+            ))}
+            {accruals.length === 0 && <EmptyRow colSpan={7} text={isLoading ? "Загрузка..." : "Начислений пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -3174,6 +3403,62 @@ function shippingOrderContainerStatusLabel(status: ShippingOrderContainerStatus)
     case "FINISHED":
       return "Вывезен";
   }
+}
+
+function tosFactStatusLabel(status: TosOperationFact["status"]) {
+  switch (status) {
+    case "RECEIVED":
+      return "Получено";
+    case "PROCESSED":
+      return "Обработано";
+    case "ERROR":
+      return "Ошибка";
+    case "CANCELLED":
+      return "Отменено";
+  }
+}
+
+function storagePeriodStatusLabel(status: ContainerStoragePeriod["status"]) {
+  switch (status) {
+    case "ACTIVE":
+      return "Активно";
+    case "CLOSED":
+      return "Закрыто";
+    case "CANCELLED":
+      return "Отменено";
+  }
+}
+
+function storageSourceTypeLabel(sourceType: ContainerStoragePeriod["sourceType"]) {
+  switch (sourceType) {
+    case "RECEIVING_ORDER":
+      return "Поставка";
+    case "OWNER_CHANGE_ORDER":
+      return "Смена владельца";
+    case "SYSTEM":
+      return "Система";
+  }
+}
+
+function storageAccrualStatusLabel(status: ContainerStorageDailyAccrual["status"]) {
+  switch (status) {
+    case "ACCRUED":
+      return "Начислено";
+    case "CANCELLED":
+      return "Отменено";
+  }
+}
+
+function rawPayloadText(rawPayload: unknown) {
+  if (rawPayload == null) {
+    return "-";
+  }
+
+  if (typeof rawPayload === "string") {
+    return rawPayload;
+  }
+
+  return JSON.stringify(rawPayload);
 }
 
 function oneTimeComplexServiceItems(order: ReceivingOrder) {
