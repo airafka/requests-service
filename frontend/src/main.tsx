@@ -472,6 +472,7 @@ function App() {
     }
 
     const updatedOrder: ReceivingOrder = await response.json();
+    await accrueStorageForDate(billingDate, false);
     await loadData();
     setSelectedTosOrderId(updatedOrder.id);
     setPage("tos-receiving-details");
@@ -645,6 +646,12 @@ function App() {
     }
 
     const createdOrder: OwnerChangeOrder = await response.json();
+    await rollbackStorageAfterDate(billingDate);
+    if (!isDateBefore(billingDate, ownerServiceDate)) {
+      for (const accrualDate of datesBetweenInclusive(ownerServiceDate, billingDate)) {
+        await accrueStorageForDate(accrualDate, false);
+      }
+    }
     setOwnerServiceId("");
     setOwnerServiceDate(todayLocalDate());
     setOwnerClientId("");
@@ -3370,6 +3377,26 @@ function datesBetweenExclusiveStart(start: string, end: string) {
 
   const dates: string[] = [];
   const currentDate = addDays(startDate, 1);
+  while (currentDate.getTime() <= endDate.getTime()) {
+    dates.push(toLocalDateInputValue(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  return dates;
+}
+
+function datesBetweenInclusive(start: string, end: string) {
+  if (!start || !end) {
+    return [];
+  }
+
+  const startDate = localDateOnly(start);
+  const endDate = localDateOnly(end);
+  if (endDate.getTime() < startDate.getTime()) {
+    return [];
+  }
+
+  const dates: string[] = [];
+  const currentDate = new Date(startDate);
   while (currentDate.getTime() <= endDate.getTime()) {
     dates.push(toLocalDateInputValue(currentDate));
     currentDate.setDate(currentDate.getDate() + 1);

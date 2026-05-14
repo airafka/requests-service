@@ -46,7 +46,7 @@ public class ContainerStorageService {
         ContainerStorageSourceType sourceType,
         Long sourceId
     ) {
-        ContainerStoragePeriod period = periodRepository
+        return periodRepository
             .findByContainerIdAndStatus(container.getId(), ContainerStoragePeriodStatus.ACTIVE)
             .orElseGet(() -> {
                 ContainerStoragePeriod newPeriod = new ContainerStoragePeriod();
@@ -60,8 +60,6 @@ public class ContainerStorageService {
                 newPeriod.setSourceId(sourceId);
                 return periodRepository.save(newPeriod);
             });
-        accrueStorageDay(dateFrom);
-        return period;
     }
 
     @Transactional
