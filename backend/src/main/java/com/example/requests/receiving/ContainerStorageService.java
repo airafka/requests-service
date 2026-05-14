@@ -76,6 +76,18 @@ public class ContainerStorageService {
     }
 
     @Transactional
+    public void closeStoragePeriodForOwnerChange(ContainerEntity container, LocalDate changeDate) {
+        periodRepository
+            .findByContainerIdAndStatus(container.getId(), ContainerStoragePeriodStatus.ACTIVE)
+            .ifPresent(period -> {
+                rollbackPeriodAccrualsOnOrAfter(period, changeDate);
+                period.setDateTo(changeDate);
+                period.setStatus(ContainerStoragePeriodStatus.CLOSED);
+                periodRepository.save(period);
+            });
+    }
+
+    @Transactional
     public List<ContainerStorageDailyAccrual> accrueStorageDay(LocalDate date) {
         BillingService service = storageService();
         List<ContainerStoragePeriod> activePeriods = periodRepository
@@ -122,6 +134,20 @@ public class ContainerStorageService {
         period.setStorageDays(period.getStorageDays() + 1);
         periodRepository.save(period);
         return accrualRepository.save(accrual);
+    }
+
+    private void rollbackPeriodAccrualsOnOrAfter(ContainerStoragePeriod period, LocalDate date) {
+        List<ContainerStorageDailyAccrual> accruals = accrualRepository
+            .findByStoragePeriodIdAndStatusAndAccrualDateGreaterThanEqualOrderByAccrualDateDescIdDesc(
+                period.getId(),
+                ContainerStorageDailyAccrualStatus.ACCRUED,
+                date
+            );
+
+        for (ContainerStorageDailyAccrual accrual : accruals) {
+            period.setStorageDays(Math.max(period.getStorageDays() - accrual.getQuantity(), 0));
+            accrualRepository.delete(accrual);
+        }
     }
 
     private BillingService storageService() {

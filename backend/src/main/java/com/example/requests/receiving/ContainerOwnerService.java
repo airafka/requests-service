@@ -219,7 +219,7 @@ public class ContainerOwnerService {
             next.setCreatedBy(currentUser());
             historyRepository.save(next);
 
-            storageService.closeStoragePeriod(link.getContainer(), order.getServiceDate());
+            storageService.closeStoragePeriodForOwnerChange(link.getContainer(), order.getServiceDate());
             storageService.openStoragePeriod(
                 link.getContainer(),
                 order.getNewClient(),
@@ -403,7 +403,7 @@ public class ContainerOwnerService {
             next.setCreatedBy(currentUser());
             historyRepository.save(next);
 
-            storageService.closeStoragePeriod(link.getContainer(), order.getServiceDate());
+            storageService.closeStoragePeriodForOwnerChange(link.getContainer(), order.getServiceDate());
             storageService.openStoragePeriod(
                 link.getContainer(),
                 order.getNewClient(),

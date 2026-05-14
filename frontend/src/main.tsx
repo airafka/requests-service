@@ -1885,7 +1885,7 @@ function OwnerChangeOrdersListPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Номер заявки", "Услуга", "Новый владелец", "КТК", "Дата услуги"]}>
+          <OrdersTable columns={["Номер заявки", "Услуга", "Новый владелец", "КТК", "Дата начала владения"]}>
             {orders.map((order) => (
               <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
                 <td>{order.number}</td>
@@ -2644,7 +2644,7 @@ function CreateOwnerChangeOrderPage(props: {
             {isOwnerChangeSelected && (
               <>
                 <label>
-                  Дата услуги
+                  Дата начала владения
                   <input type="date" value={props.serviceDate} onChange={(event) => props.onServiceDateChange(event.target.value)} />
                 </label>
                 <Select
@@ -3123,7 +3123,7 @@ function OwnerChangeOrderDetailsPage({
         <div className="detail-grid">
           <DetailItem label="Номер заявки" value={order.number} />
           <DetailItem label="Услуга" value={order.service.name} />
-          <DetailItem label="Дата услуги" value={formatDate(order.serviceDate)} />
+          <DetailItem label="Дата начала владения" value={formatDate(order.serviceDate)} />
           <DetailItem label="Новый владелец" value={order.newClient.name} />
           <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
           <DetailItem label="Комментарий" value={order.comment || "-"} />
