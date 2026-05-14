@@ -49,6 +49,12 @@ public class ContainerStorageDailyAccrualController {
             .toList();
     }
 
+    @PostMapping("/rollback-after")
+    @Transactional
+    public void rollbackAfter(@Valid @RequestBody AccrueStorageDayDto dto) {
+        storageService.rollbackStorageAfter(dto.date());
+    }
+
     private boolean containsIgnoreCase(String source, String part) {
         return source != null && source.toLowerCase().contains(part.trim().toLowerCase());
     }

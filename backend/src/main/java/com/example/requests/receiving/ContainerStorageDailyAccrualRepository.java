@@ -11,4 +11,10 @@ public interface ContainerStorageDailyAccrualRepository extends JpaRepository<Co
 
     @EntityGraph(attributePaths = {"storagePeriod", "container", "client", "service"})
     List<ContainerStorageDailyAccrual> findAllByOrderByAccrualDateDescIdDesc();
+
+    @EntityGraph(attributePaths = {"storagePeriod"})
+    List<ContainerStorageDailyAccrual> findByStatusAndAccrualDateAfterOrderByAccrualDateDescIdDesc(
+        ContainerStorageDailyAccrualStatus status,
+        LocalDate accrualDate
+    );
 }

@@ -85,6 +85,22 @@ public class ContainerStorageService {
             .toList();
     }
 
+    @Transactional
+    public void rollbackStorageAfter(LocalDate date) {
+        List<ContainerStorageDailyAccrual> accruals = accrualRepository
+            .findByStatusAndAccrualDateAfterOrderByAccrualDateDescIdDesc(
+                ContainerStorageDailyAccrualStatus.ACCRUED,
+                date
+            );
+
+        for (ContainerStorageDailyAccrual accrual : accruals) {
+            ContainerStoragePeriod period = accrual.getStoragePeriod();
+            period.setStorageDays(Math.max(period.getStorageDays() - accrual.getQuantity(), 0));
+            periodRepository.save(period);
+            accrualRepository.delete(accrual);
+        }
+    }
+
     private ContainerStorageDailyAccrual createAccrual(
         ContainerStoragePeriod period,
         BillingService service,

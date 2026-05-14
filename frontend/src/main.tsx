@@ -515,13 +515,13 @@ function App() {
     setPage("tos-shipping-details");
   }
 
-  async function accrueStorageForBillingDate() {
+  async function accrueStorageForDate(date: string, shouldReload = true) {
     setError(null);
 
     const response = await fetch(`${API_BASE}/storage-accruals/accrue`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: billingDate }),
+      body: JSON.stringify({ date }),
     });
 
     if (!response.ok) {
@@ -529,8 +529,49 @@ function App() {
       return;
     }
 
+    if (shouldReload) {
+      await loadData();
+    }
+  }
+
+  async function rollbackStorageAfterDate(date: string) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/storage-accruals/rollback-after`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось откатить начисления хранения"));
+      return;
+    }
+
     await loadData();
-    setPage("storage-accruals");
+  }
+
+  async function changeBillingDate(date: string) {
+    const previousDate = billingDate;
+    setBillingDate(date);
+    if (!date) {
+      return;
+    }
+
+    const datesToAccrue = datesBetweenExclusiveStart(previousDate, date);
+    if (isDateBefore(date, previousDate)) {
+      await rollbackStorageAfterDate(date);
+      return;
+    }
+
+    if (datesToAccrue.length === 0) {
+      return;
+    }
+
+    for (const accrualDate of datesToAccrue) {
+      await accrueStorageForDate(accrualDate, false);
+    }
+    await loadData();
   }
 
   async function updateContainerStorageDays(containerId: number, storageDays: number) {
@@ -1198,7 +1239,7 @@ function App() {
           <label>
             <CalendarDays size={18} />
             <span>Расчетная дата</span>
-            <input type="date" value={billingDate} onChange={(event) => setBillingDate(event.target.value)} />
+            <input type="date" value={billingDate} onChange={(event) => void changeBillingDate(event.target.value)} />
           </label>
         </div>
 
@@ -1330,8 +1371,6 @@ function App() {
           <ContainerStorageAccrualsPage
             accruals={storageAccruals}
             isLoading={isLoading}
-            billingDate={billingDate}
-            onAccrue={accrueStorageForBillingDate}
           />
         )}
 
@@ -1753,21 +1792,13 @@ function ContainerStoragePeriodsPage({
 function ContainerStorageAccrualsPage({
   accruals,
   isLoading,
-  billingDate,
-  onAccrue,
 }: {
   accruals: ContainerStorageDailyAccrual[];
   isLoading: boolean;
-  billingDate: string;
-  onAccrue: () => void;
 }) {
   return (
     <>
-      <PageHead title="Журнал начисления хранения">
-        <BaseButton buttonType={ButtonType.default} onClick={onAccrue}>
-          Начислить за {formatDate(billingDate)}
-        </BaseButton>
-      </PageHead>
+      <PageHead title="Журнал начисления хранения" />
 
       <div className="uikit-table-card">
         <PageCard>
@@ -3324,6 +3355,39 @@ function todayLocalDate() {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60000;
   return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function datesBetweenExclusiveStart(start: string, end: string) {
+  if (!start || !end) {
+    return [];
+  }
+
+  const startDate = localDateOnly(start);
+  const endDate = localDateOnly(end);
+  if (endDate.getTime() <= startDate.getTime()) {
+    return [];
+  }
+
+  const dates: string[] = [];
+  const currentDate = addDays(startDate, 1);
+  while (currentDate.getTime() <= endDate.getTime()) {
+    dates.push(toLocalDateInputValue(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  return dates;
+}
+
+function isDateBefore(left: string, right: string) {
+  if (!left || !right) {
+    return false;
+  }
+
+  return localDateOnly(left).getTime() < localDateOnly(right).getTime();
+}
+
+function toLocalDateInputValue(value: Date) {
+  const offset = value.getTimezoneOffset() * 60000;
+  return new Date(value.getTime() - offset).toISOString().slice(0, 10);
 }
 
 function storageDaysForOwner(owner: ContainerOwnerHistory, billingDate: string) {
