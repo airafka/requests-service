@@ -1473,19 +1473,20 @@ function ReceivingOrdersListPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Номер заявки", "Клиент", "Статус", "КТК", "Дата создания"]}>
+          <OrdersTable columns={["Номер заявки", "Клиент", "Плановая дата поставки", "Фактическая дата поставки", "Дата создания", "Статус"]}>
             {orders.map((order) => (
               <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
                 <td>{order.number}</td>
                 <td>{order.client.name}</td>
+                <td>{formatDate(order.plannedReceivingDate)}</td>
+                <td>{order.actualReceivingDate ? formatDate(order.actualReceivingDate) : "-"}</td>
+                <td>{formatDateTime(order.createdAt)}</td>
                 <td>
                   <StatusBadge status={order.status} />
                 </td>
-                <td>{order.containers.map((link) => link.container.number).join(", ")}</td>
-                <td>{formatDateTime(order.createdAt)}</td>
               </tr>
             ))}
-            {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+            {orders.length === 0 && <EmptyRow colSpan={6} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -1582,19 +1583,20 @@ function ShippingOrdersListPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Номер заявки", "Клиент", "Статус", "КТК", "Дата создания"]}>
+          <OrdersTable columns={["Номер заявки", "Клиент", "Плановая дата вывоза", "Фактическая дата вывоза", "Дата создания", "Статус"]}>
             {orders.map((order) => (
               <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
                 <td>{order.number}</td>
                 <td>{order.client.name}</td>
+                <td>{formatDate(order.plannedShippingDate)}</td>
+                <td>{order.actualShippingDate ? formatDate(order.actualShippingDate) : "-"}</td>
+                <td>{formatDateTime(order.createdAt)}</td>
                 <td>
                   <ShippingStatusBadge status={order.status} />
                 </td>
-                <td>{order.containers.map((link) => link.container.number).join(", ")}</td>
-                <td>{formatDateTime(order.createdAt)}</td>
               </tr>
             ))}
-            {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+            {orders.length === 0 && <EmptyRow colSpan={6} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
