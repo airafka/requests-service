@@ -34,7 +34,19 @@ public class ContainerStorageService {
         ContainerStorageSourceType sourceType,
         Long sourceId
     ) {
-        return openStoragePeriod(container, client, dateFrom, storageService(), sourceType, sourceId);
+        return openStoragePeriod(container, client, dateFrom, storageService(), sourceType, sourceId, null);
+    }
+
+    @Transactional
+    public ContainerStoragePeriod openStoragePeriod(
+        ContainerEntity container,
+        ClientEntity client,
+        LocalDate dateFrom,
+        ContainerStorageSourceType sourceType,
+        Long sourceId,
+        ContainerOwnerHistory ownerHistory
+    ) {
+        return openStoragePeriod(container, client, dateFrom, storageService(), sourceType, sourceId, ownerHistory);
     }
 
     @Transactional
@@ -44,7 +56,8 @@ public class ContainerStorageService {
         LocalDate dateFrom,
         BillingService service,
         ContainerStorageSourceType sourceType,
-        Long sourceId
+        Long sourceId,
+        ContainerOwnerHistory ownerHistory
     ) {
         return periodRepository
             .findByContainerIdAndStatus(container.getId(), ContainerStoragePeriodStatus.ACTIVE)
@@ -58,6 +71,7 @@ public class ContainerStorageService {
                 newPeriod.setStatus(ContainerStoragePeriodStatus.ACTIVE);
                 newPeriod.setSourceType(sourceType);
                 newPeriod.setSourceId(sourceId);
+                newPeriod.setOwnerHistory(ownerHistory);
                 return periodRepository.save(newPeriod);
             });
     }

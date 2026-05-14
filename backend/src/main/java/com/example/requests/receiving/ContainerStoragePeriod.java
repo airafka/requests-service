@@ -39,6 +39,10 @@ public class ContainerStoragePeriod {
     @JoinColumn(name = "service_id")
     private BillingService service;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_history_id")
+    private ContainerOwnerHistory ownerHistory;
+
     @Column(nullable = false)
     private LocalDate dateFrom;
 
@@ -115,6 +119,14 @@ public class ContainerStoragePeriod {
 
     public void setService(BillingService service) {
         this.service = service;
+    }
+
+    public ContainerOwnerHistory getOwnerHistory() {
+        return ownerHistory;
+    }
+
+    public void setOwnerHistory(ContainerOwnerHistory ownerHistory) {
+        this.ownerHistory = ownerHistory;
     }
 
     public LocalDate getDateFrom() {

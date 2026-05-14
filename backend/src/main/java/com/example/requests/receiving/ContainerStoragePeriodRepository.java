@@ -8,13 +8,13 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ContainerStoragePeriodRepository extends JpaRepository<ContainerStoragePeriod, Long> {
-    @EntityGraph(attributePaths = {"container", "client", "service"})
+    @EntityGraph(attributePaths = {"container", "client", "service", "ownerHistory"})
     List<ContainerStoragePeriod> findAllByOrderByDateFromDescIdDesc();
 
-    @EntityGraph(attributePaths = {"container", "client", "service"})
+    @EntityGraph(attributePaths = {"container", "client", "service", "ownerHistory"})
     Optional<ContainerStoragePeriod> findByContainerIdAndStatus(Long containerId, ContainerStoragePeriodStatus status);
 
-    @EntityGraph(attributePaths = {"container", "client", "service"})
+    @EntityGraph(attributePaths = {"container", "client", "service", "ownerHistory"})
     List<ContainerStoragePeriod> findByStatusAndDateFromLessThanEqualOrderByDateFromAscIdAsc(
         ContainerStoragePeriodStatus status,
         LocalDate dateFrom

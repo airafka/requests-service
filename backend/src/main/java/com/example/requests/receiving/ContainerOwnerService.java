@@ -48,30 +48,28 @@ public class ContainerOwnerService {
     }
 
     @Transactional
-    public void createReceivingHistory(ReceivingOrder order) {
-        for (ReceivingOrderContainer link : order.getContainers()) {
-            if (historyRepository.existsByOperationTypeAndSourceId(ContainerOwnerOperationType.RECEIVING, link.getId())) {
-                continue;
-            }
-            OffsetDateTime receivedAt = link.getFinishedAt() == null
-                ? startOfDay(order.getActualReceivingDate())
-                : link.getFinishedAt();
+    public ContainerOwnerHistory createReceivingHistory(ReceivingOrder order, ReceivingOrderContainer link, LocalDate actualDate) {
+        return historyRepository.findByOperationTypeAndSourceId(ContainerOwnerOperationType.RECEIVING, link.getId())
+            .orElseGet(() -> {
+                OffsetDateTime receivedAt = link.getFinishedAt() == null
+                    ? startOfDay(actualDate)
+                    : link.getFinishedAt();
 
-            historyRepository.findByContainerIdAndValidToIsNull(link.getContainer().getId())
-                .ifPresent(active -> {
-                    active.setValidTo(receivedAt);
-                    historyRepository.saveAndFlush(active);
-                });
+                historyRepository.findByContainerIdAndValidToIsNull(link.getContainer().getId())
+                    .ifPresent(active -> {
+                        active.setValidTo(receivedAt);
+                        historyRepository.saveAndFlush(active);
+                    });
 
-            ContainerOwnerHistory history = new ContainerOwnerHistory();
-            history.setContainer(link.getContainer());
-            history.setClient(order.getClient());
-            history.setOperationType(ContainerOwnerOperationType.RECEIVING);
-            history.setSourceId(link.getId());
-            history.setValidFrom(receivedAt);
-            history.setCreatedBy(currentUser());
-            historyRepository.save(history);
-        }
+                ContainerOwnerHistory history = new ContainerOwnerHistory();
+                history.setContainer(link.getContainer());
+                history.setClient(order.getClient());
+                history.setOperationType(ContainerOwnerOperationType.RECEIVING);
+                history.setSourceId(link.getId());
+                history.setValidFrom(receivedAt);
+                history.setCreatedBy(currentUser());
+                return historyRepository.save(history);
+            });
     }
 
     @Transactional
@@ -217,7 +215,7 @@ public class ContainerOwnerService {
             next.setSourceId(order.getId());
             next.setValidFrom(now);
             next.setCreatedBy(currentUser());
-            historyRepository.save(next);
+            ContainerOwnerHistory savedNext = historyRepository.save(next);
 
             storageService.closeStoragePeriodForOwnerChange(link.getContainer(), order.getServiceDate());
             storageService.openStoragePeriod(
@@ -225,7 +223,8 @@ public class ContainerOwnerService {
                 order.getNewClient(),
                 order.getServiceDate(),
                 ContainerStorageSourceType.OWNER_CHANGE_ORDER,
-                order.getId()
+                order.getId(),
+                savedNext
             );
         }
 
@@ -284,6 +283,7 @@ public class ContainerOwnerService {
         };
 
         return new ContainerOwnerHistoryResponse(
+            history.getId(),
             history.getContainer().getId(),
             ClientResponse.fromEntity(history.getClient()),
             history.getOperationType(),
@@ -401,7 +401,7 @@ public class ContainerOwnerService {
             next.setSourceId(order.getId());
             next.setValidFrom(completedAt);
             next.setCreatedBy(currentUser());
-            historyRepository.save(next);
+            ContainerOwnerHistory savedNext = historyRepository.save(next);
 
             storageService.closeStoragePeriodForOwnerChange(link.getContainer(), order.getServiceDate());
             storageService.openStoragePeriod(
@@ -409,7 +409,8 @@ public class ContainerOwnerService {
                 order.getNewClient(),
                 order.getServiceDate(),
                 ContainerStorageSourceType.OWNER_CHANGE_ORDER,
-                order.getId()
+                order.getId(),
+                savedNext
             );
         }
 

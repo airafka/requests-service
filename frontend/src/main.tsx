@@ -120,6 +120,7 @@ type OwnerChangeOrder = {
 };
 
 type ContainerOwnerHistory = {
+  id: number;
   containerId: number;
   client: Client;
   operationType: "RECEIVING" | "SHIPPING" | "OWNER_CHANGE";
@@ -210,6 +211,7 @@ type ContainerStoragePeriod = {
   clientName: string;
   serviceId: number | null;
   serviceName: string | null;
+  ownerHistoryId: number | null;
   dateFrom: string;
   dateTo: string | null;
   storageDays: number;
@@ -1467,6 +1469,7 @@ function App() {
           <ContainerOwnerDetailsPage
             container={selectedOwnerContainer}
             history={selectedOwnerHistory}
+            storagePeriods={storagePeriods}
             onBack={() => setPage("containers-list")}
             onOpenSource={openSource}
             billingDate={billingDate}
@@ -2405,12 +2408,14 @@ function CreateComplexServicePage({
 function ContainerOwnerDetailsPage({
   container,
   history,
+  storagePeriods,
   onBack,
   onOpenSource,
   billingDate,
 }: {
   container: Container | null;
   history: ContainerOwnerHistory[];
+  storagePeriods: ContainerStoragePeriod[];
   onBack: () => void;
   onOpenSource: (history: ContainerOwnerHistory) => void;
   billingDate: string;
@@ -2418,7 +2423,8 @@ function ContainerOwnerDetailsPage({
   if (!container) {
     return <NotSelected title="КТК не выбран" onBack={onBack} />;
   }
-  const activeOwner = history.find((item) => item.validTo === null) ?? null;
+  const containerStoragePeriods = storagePeriods.filter((period) => period.containerId === container.id);
+  const activePeriod = containerStoragePeriods.find((period) => period.status === "ACTIVE") ?? null;
 
   return (
     <>
@@ -2431,7 +2437,7 @@ function ContainerOwnerDetailsPage({
           <div className="billing-days-control">
             <div>
               <span>Дней хранения на {formatDate(billingDate)}</span>
-              <strong>{activeOwner ? storageDaysForOwner(activeOwner, billingDate) : "Закрыто"}</strong>
+              <strong>{activePeriod ? activePeriod.storageDays : "Закрыто"}</strong>
             </div>
           </div>
         </PageCard>
@@ -2439,25 +2445,31 @@ function ContainerOwnerDetailsPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дней хранения", "Период"]}>
-            {history.map((item) => (
-              <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
-                <td>{item.client.name}</td>
-                <td>{operationLabel(item.operationType)}</td>
-                <td>
-                  {item.sourceOrderId ? (
-                    <button className="table-link" type="button" onClick={() => onOpenSource(item)}>
-                      {operationLabel(item.operationType)} №{item.sourceNumber ?? item.sourceOrderId}
-                    </button>
-                  ) : (
-                    "-"
-                  )}
-                </td>
-                <td>{storageDaysForOwner(item, billingDate)}</td>
-                <td>{formatDateTime(item.validFrom)} - {item.validTo ? formatDateTime(item.validTo) : formatDate(billingDate)}</td>
-              </tr>
-            ))}
-            {history.length === 0 && <EmptyRow colSpan={5} text="Истории владения пока нет" />}
+          <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дата начала", "Дата окончания", "Дней хранения"]}>
+            {history.map((item) => {
+              const storagePeriod = storagePeriodForOwnerHistory(item, containerStoragePeriods);
+              const isStorageOperation = item.operationType !== "SHIPPING";
+
+              return (
+                <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
+                  <td>{item.client.name}</td>
+                  <td>{operationLabel(item.operationType)}</td>
+                  <td>
+                    {item.sourceOrderId ? (
+                      <button className="table-link" type="button" onClick={() => onOpenSource(item)}>
+                        {operationLabel(item.operationType)} №{item.sourceNumber ?? item.sourceOrderId}
+                      </button>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td>{formatDate(storagePeriod?.dateFrom ?? datePart(item.validFrom))}</td>
+                  <td>{storagePeriod?.dateTo ? formatDate(storagePeriod.dateTo) : item.validTo ? formatDate(datePart(item.validTo)) : ""}</td>
+                  <td>{isStorageOperation ? storagePeriod?.storageDays ?? storageDaysForOwner(item, billingDate) : "-"}</td>
+                </tr>
+              );
+            })}
+            {history.length === 0 && <EmptyRow colSpan={6} text="Истории КТК пока нет" />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -3358,6 +3370,10 @@ function formatDate(value: string) {
   });
 }
 
+function datePart(value: string) {
+  return value.includes("T") ? value.slice(0, 10) : value;
+}
+
 function todayLocalDate() {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60000;
@@ -3435,8 +3451,7 @@ function storageDaysForOwner(owner: ContainerOwnerHistory, billingDate: string) 
 }
 
 function localDateOnly(value: string) {
-  const datePart = value.includes("T") ? value.slice(0, 10) : value;
-  return new Date(`${datePart}T00:00:00`);
+  return new Date(`${datePart(value)}T00:00:00`);
 }
 
 function addDays(value: Date, days: number) {
@@ -3550,6 +3565,13 @@ function rawPayloadText(rawPayload: unknown) {
   }
 
   return JSON.stringify(rawPayload);
+}
+
+function storagePeriodForOwnerHistory(
+  history: ContainerOwnerHistory,
+  storagePeriods: ContainerStoragePeriod[],
+) {
+  return storagePeriods.find((period) => period.ownerHistoryId === history.id) ?? null;
 }
 
 function oneTimeComplexServiceItems(order: ReceivingOrder) {

@@ -201,12 +201,14 @@ public class ReceivingOrderController {
         if (link.getStatus() != ReceivingOrderContainerStatus.FINISHED) {
             link.setStatus(ReceivingOrderContainerStatus.FINISHED);
             link.setFinishedAt(startOfDay(dto.actualDate()));
+            ContainerOwnerHistory ownerHistory = containerOwnerService.createReceivingHistory(order, link, dto.actualDate());
             storageService.openStoragePeriod(
                 link.getContainer(),
                 order.getClient(),
                 dto.actualDate(),
                 ContainerStorageSourceType.RECEIVING_ORDER,
-                link.getId()
+                link.getId(),
+                ownerHistory
             );
             tosOperationFactService.recordReceivingContainerFinished(order, link, dto.actualDate());
         }
@@ -217,7 +219,6 @@ public class ReceivingOrderController {
         if (allContainersFinished && order.getStatus() != ReceivingOrderStatus.COMPLETED) {
             order.setStatus(ReceivingOrderStatus.COMPLETED);
             order.setActualReceivingDate(dto.actualDate());
-            containerOwnerService.createReceivingHistory(order);
         }
 
         return ReceivingOrderResponse.fromEntity(orderRepository.save(order));

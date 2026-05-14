@@ -10,6 +10,8 @@ import java.util.Optional;
 public interface ContainerOwnerHistoryRepository extends JpaRepository<ContainerOwnerHistory, Long> {
     boolean existsByOperationTypeAndSourceId(ContainerOwnerOperationType operationType, Long sourceId);
 
+    Optional<ContainerOwnerHistory> findByOperationTypeAndSourceId(ContainerOwnerOperationType operationType, Long sourceId);
+
     @EntityGraph(attributePaths = {"container", "client"})
     Optional<ContainerOwnerHistory> findByContainerIdAndValidToIsNull(Long containerId);
 

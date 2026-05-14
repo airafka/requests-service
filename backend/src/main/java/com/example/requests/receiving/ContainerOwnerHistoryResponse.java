@@ -3,6 +3,7 @@ package com.example.requests.receiving;
 import java.time.OffsetDateTime;
 
 public record ContainerOwnerHistoryResponse(
+    Long id,
     Long containerId,
     ClientResponse client,
     ContainerOwnerOperationType operationType,
