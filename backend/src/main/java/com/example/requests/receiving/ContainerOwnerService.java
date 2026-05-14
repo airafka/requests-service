@@ -299,15 +299,6 @@ public class ContainerOwnerService {
         );
     }
 
-    @Transactional
-    public ContainerOwnerHistoryResponse updateStorageDays(Long containerId, int storageDays) {
-        ContainerOwnerHistory history = historyRepository.findByContainerIdAndValidToIsNull(containerId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Container is not in storage"));
-
-        history.setStorageDays(storageDays);
-        return toHistoryResponse(historyRepository.save(history));
-    }
-
     @Transactional(readOnly = true)
     public void validateContainersBelongToClient(List<ContainerEntity> containers, ClientEntity client) {
         List<Long> containerIds = containers.stream()

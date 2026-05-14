@@ -1,10 +1,7 @@
 package com.example.requests.receiving;
 
-import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -39,11 +36,4 @@ public class ContainerOwnerController {
         return service.getOwnerHistory(id);
     }
 
-    @PutMapping("/{id}/owner-storage-days")
-    public ContainerOwnerHistoryResponse updateStorageDays(
-        @PathVariable Long id,
-        @Valid @RequestBody UpdateStorageDaysDto dto
-    ) {
-        return service.updateStorageDays(id, dto.storageDays());
-    }
 }

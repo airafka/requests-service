@@ -553,33 +553,6 @@ textarea {
   color: #ffffff !important;
 }
 
-.billing-controls {
-  width: min(520px, 100%);
-  margin-bottom: 16px;
-}
-
-.billing-days-control {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.billing-days-control > div:first-child {
-  display: grid;
-  gap: 4px;
-}
-
-.billing-days-control span {
-  color: #747985;
-  font-size: 12px;
-}
-
-.billing-days-control strong {
-  color: #191a1f;
-  font-size: 20px;
-}
-
 .billing-stepper {
   display: flex;
   align-items: center;

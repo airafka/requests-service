@@ -577,29 +577,6 @@ function App() {
     await loadData();
   }
 
-  async function updateContainerStorageDays(containerId: number, storageDays: number) {
-    setError(null);
-
-    const response = await fetch(`${API_BASE}/containers/${containerId}/owner-storage-days`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storageDays: Math.max(storageDays, 0) }),
-    });
-
-    if (!response.ok) {
-      setError(await errorText(response, "Не удалось обновить дни хранения"));
-      return;
-    }
-
-    await loadData();
-    if (selectedOwnerContainer?.id === containerId) {
-      const historyResponse = await fetch(`${API_BASE}/containers/${containerId}/owner-history`);
-      if (historyResponse.ok) {
-        setSelectedOwnerHistory(await historyResponse.json());
-      }
-    }
-  }
-
   async function createOwnerChangeOrder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -1472,7 +1449,6 @@ function App() {
             storagePeriods={storagePeriods}
             onBack={() => setPage("containers-list")}
             onOpenSource={openSource}
-            billingDate={billingDate}
           />
         )}
 
@@ -2411,37 +2387,23 @@ function ContainerOwnerDetailsPage({
   storagePeriods,
   onBack,
   onOpenSource,
-  billingDate,
 }: {
   container: Container | null;
   history: ContainerOwnerHistory[];
   storagePeriods: ContainerStoragePeriod[];
   onBack: () => void;
   onOpenSource: (history: ContainerOwnerHistory) => void;
-  billingDate: string;
 }) {
   if (!container) {
     return <NotSelected title="КТК не выбран" onBack={onBack} />;
   }
   const containerStoragePeriods = storagePeriods.filter((period) => period.containerId === container.id);
-  const activePeriod = containerStoragePeriods.find((period) => period.status === "ACTIVE") ?? null;
 
   return (
     <>
       <PageHead title={container.number}>
         <BackButton onClick={onBack} />
       </PageHead>
-
-      <div className="billing-controls">
-        <PageCard>
-          <div className="billing-days-control">
-            <div>
-              <span>Дней хранения на {formatDate(billingDate)}</span>
-              <strong>{activePeriod ? activePeriod.storageDays : "Закрыто"}</strong>
-            </div>
-          </div>
-        </PageCard>
-      </div>
 
       <div className="uikit-table-card">
         <PageCard>
@@ -2465,7 +2427,7 @@ function ContainerOwnerDetailsPage({
                   </td>
                   <td>{formatDate(storagePeriod?.dateFrom ?? datePart(item.validFrom))}</td>
                   <td>{storagePeriod?.dateTo ? formatDate(storagePeriod.dateTo) : item.validTo ? formatDate(datePart(item.validTo)) : ""}</td>
-                  <td>{isStorageOperation ? storagePeriod?.storageDays ?? storageDaysForOwner(item, billingDate) : "-"}</td>
+                  <td>{isStorageOperation ? storagePeriod?.storageDays ?? "-" : "-"}</td>
                 </tr>
               );
             })}
