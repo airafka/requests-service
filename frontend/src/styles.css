@@ -166,6 +166,40 @@ body *,
   padding: 16px;
 }
 
+.system-calendar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.system-calendar label {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d8dde3;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 0 10px;
+  color: #505865;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.system-calendar svg {
+  color: #3472ed;
+}
+
+.system-calendar input {
+  height: 30px;
+  border: 0;
+  border-left: 1px solid #edf0f4;
+  padding-left: 8px;
+  color: #191a1f;
+  font-size: 13px;
+  outline: none;
+}
+
 .page-head {
   display: flex;
   align-items: center;

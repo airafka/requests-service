@@ -19,7 +19,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 
 @RestController
 @RequestMapping("/api/receiving-orders")
@@ -84,6 +86,7 @@ public class ReceivingOrderController {
         order.setNumber(nextOrderNumber());
         order.setClient(client);
         order.setComplexService(complexService);
+        order.setReceivingDate(dto.receivingDate());
         requestedNumbers.forEach(number -> order.addContainer(containersByNumber.get(normalize(number))));
 
         ReceivingOrder saved = orderRepository.saveAndFlush(order);
@@ -187,7 +190,7 @@ public class ReceivingOrderController {
 
         if (link.getStatus() != ReceivingOrderContainerStatus.FINISHED) {
             link.setStatus(ReceivingOrderContainerStatus.FINISHED);
-            link.setFinishedAt(OffsetDateTime.now());
+            link.setFinishedAt(startOfDay(order.getReceivingDate()));
         }
 
         boolean allContainersFinished = order.getContainers().stream()
@@ -207,5 +210,9 @@ public class ReceivingOrderController {
 
     private String normalize(String value) {
         return value.trim().toUpperCase();
+    }
+
+    private OffsetDateTime startOfDay(LocalDate date) {
+        return date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
     }
 }

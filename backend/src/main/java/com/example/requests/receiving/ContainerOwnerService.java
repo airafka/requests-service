@@ -5,7 +5,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +42,7 @@ public class ContainerOwnerService {
 
     @Transactional
     public void createReceivingHistory(ReceivingOrder order) {
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime receivedAt = startOfDay(order.getReceivingDate());
         for (ReceivingOrderContainer link : order.getContainers()) {
             if (historyRepository.existsByOperationTypeAndSourceId(ContainerOwnerOperationType.RECEIVING, link.getId())) {
                 continue;
@@ -48,7 +50,7 @@ public class ContainerOwnerService {
 
             historyRepository.findByContainerIdAndValidToIsNull(link.getContainer().getId())
                 .ifPresent(active -> {
-                    active.setValidTo(order.getCreatedAt() == null ? now : order.getCreatedAt());
+                    active.setValidTo(receivedAt);
                     historyRepository.saveAndFlush(active);
                 });
 
@@ -57,7 +59,7 @@ public class ContainerOwnerService {
             history.setClient(order.getClient());
             history.setOperationType(ContainerOwnerOperationType.RECEIVING);
             history.setSourceId(link.getId());
-            history.setValidFrom(order.getCreatedAt() == null ? now : order.getCreatedAt());
+            history.setValidFrom(receivedAt);
             history.setCreatedBy(currentUser());
             historyRepository.save(history);
         }
@@ -65,7 +67,7 @@ public class ContainerOwnerService {
 
     @Transactional
     public void createShippingHistory(ShippingOrder order) {
-        OffsetDateTime shippedAt = order.getCompletedAt() == null ? OffsetDateTime.now() : order.getCompletedAt();
+        OffsetDateTime shippedAt = startOfDay(order.getShippingDate());
         for (ShippingOrderContainer link : order.getContainers()) {
             if (historyRepository.existsByOperationTypeAndSourceId(ContainerOwnerOperationType.SHIPPING, link.getId())) {
                 continue;
@@ -388,5 +390,9 @@ public class ContainerOwnerService {
 
     private String currentUser() {
         return "system";
+    }
+
+    private OffsetDateTime startOfDay(LocalDate date) {
+        return date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
     }
 }

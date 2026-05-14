@@ -15,6 +15,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +37,9 @@ public class ShippingOrder {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
+    @Column(nullable = false)
+    private LocalDate shippingDate;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private ShippingOrderStatus status = ShippingOrderStatus.CONFIRMED;
@@ -48,6 +52,9 @@ public class ShippingOrder {
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();
+        if (shippingDate == null) {
+            shippingDate = LocalDate.now();
+        }
     }
 
     public Long getId() {
@@ -72,6 +79,14 @@ public class ShippingOrder {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public LocalDate getShippingDate() {
+        return shippingDate;
+    }
+
+    public void setShippingDate(LocalDate shippingDate) {
+        this.shippingDate = shippingDate;
     }
 
     public ShippingOrderStatus getStatus() {

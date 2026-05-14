@@ -1,5 +1,6 @@
 package com.example.requests.receiving;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -9,6 +10,7 @@ public record ReceivingOrderResponse(
     ClientResponse client,
     ComplexServiceResponse complexService,
     OffsetDateTime createdAt,
+    LocalDate receivingDate,
     ReceivingOrderStatus status,
     List<ReceivingOrderContainerResponse> containers
 ) {
@@ -23,6 +25,7 @@ public record ReceivingOrderResponse(
             ClientResponse.fromEntity(order.getClient()),
             order.getComplexService() == null ? null : ComplexServiceResponse.fromEntity(order.getComplexService()),
             order.getCreatedAt(),
+            order.getReceivingDate(),
             order.getStatus(),
             containers
         );

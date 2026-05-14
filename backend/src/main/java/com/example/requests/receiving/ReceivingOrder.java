@@ -15,6 +15,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +41,9 @@ public class ReceivingOrder {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
+    @Column(nullable = false)
+    private LocalDate receivingDate;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private ReceivingOrderStatus status = ReceivingOrderStatus.DRAFT;
@@ -50,6 +54,9 @@ public class ReceivingOrder {
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();
+        if (receivingDate == null) {
+            receivingDate = LocalDate.now();
+        }
     }
 
     public Long getId() {
@@ -82,6 +89,14 @@ public class ReceivingOrder {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public LocalDate getReceivingDate() {
+        return receivingDate;
+    }
+
+    public void setReceivingDate(LocalDate receivingDate) {
+        this.receivingDate = receivingDate;
     }
 
     public ReceivingOrderStatus getStatus() {

@@ -15,7 +15,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -77,6 +79,7 @@ public class ShippingOrderController {
         ShippingOrder order = new ShippingOrder();
         order.setNumber(nextOrderNumber());
         order.setClient(client);
+        order.setShippingDate(dto.shippingDate());
         requestedContainers.forEach(order::addContainer);
 
         ShippingOrder saved = orderRepository.saveAndFlush(order);
@@ -96,7 +99,7 @@ public class ShippingOrderController {
 
         if (link.getStatus() != ShippingOrderContainerStatus.FINISHED) {
             link.setStatus(ShippingOrderContainerStatus.FINISHED);
-            link.setFinishedAt(OffsetDateTime.now());
+            link.setFinishedAt(startOfDay(order.getShippingDate()));
         }
 
         boolean allContainersFinished = order.getContainers().stream()
@@ -104,7 +107,7 @@ public class ShippingOrderController {
 
         if (allContainersFinished && order.getStatus() != ShippingOrderStatus.COMPLETED) {
             order.setStatus(ShippingOrderStatus.COMPLETED);
-            order.setCompletedAt(OffsetDateTime.now());
+            order.setCompletedAt(startOfDay(order.getShippingDate()));
             containerOwnerService.createShippingHistory(order);
         }
 
@@ -117,5 +120,9 @@ public class ShippingOrderController {
 
     private String normalize(String value) {
         return value.trim().toUpperCase();
+    }
+
+    private OffsetDateTime startOfDay(LocalDate date) {
+        return date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
     }
 }

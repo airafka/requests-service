@@ -1,5 +1,6 @@
 package com.example.requests.receiving;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -8,6 +9,7 @@ public record ShippingOrderResponse(
     String number,
     ClientResponse client,
     OffsetDateTime createdAt,
+    LocalDate shippingDate,
     ShippingOrderStatus status,
     OffsetDateTime completedAt,
     List<ShippingOrderContainerResponse> containers
@@ -22,6 +24,7 @@ public record ShippingOrderResponse(
             order.getNumber(),
             ClientResponse.fromEntity(order.getClient()),
             order.getCreatedAt(),
+            order.getShippingDate(),
             order.getStatus(),
             order.getCompletedAt(),
             containers

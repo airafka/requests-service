@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Box,
   Calculator,
+  CalendarDays,
   ChevronDown,
   ClipboardCheck,
   FileText,
@@ -72,6 +73,7 @@ type ReceivingOrder = {
   client: Client;
   complexService: ComplexService | null;
   createdAt: string;
+  receivingDate: string;
   status: ReceivingOrderStatus;
   containers: ReceivingOrderContainer[];
 };
@@ -91,6 +93,7 @@ type ShippingOrder = {
   number: string;
   client: Client;
   createdAt: string;
+  shippingDate: string;
   status: ShippingOrderStatus;
   completedAt: string | null;
   containers: ShippingOrderContainer[];
@@ -205,9 +208,12 @@ function App() {
   const [selectedComplexServiceId, setSelectedComplexServiceId] = React.useState<number | null>(null);
   const [receivingClientId, setReceivingClientId] = React.useState("");
   const [receivingComplexServiceId, setReceivingComplexServiceId] = React.useState("");
+  const [receivingDate, setReceivingDate] = React.useState(todayLocalDate());
   const [receivingContainers, setReceivingContainers] = React.useState<string[]>([]);
   const [shippingClientId, setShippingClientId] = React.useState("");
+  const [shippingDate, setShippingDate] = React.useState(todayLocalDate());
   const [shippingContainers, setShippingContainers] = React.useState<string[]>([]);
+  const [billingDate, setBillingDate] = React.useState(todayLocalDate());
   const [ownerClientId, setOwnerClientId] = React.useState("");
   const [ownerComment, setOwnerComment] = React.useState("");
   const [ownerContainers, setOwnerContainers] = React.useState<number[]>([]);
@@ -322,12 +328,18 @@ function App() {
       return;
     }
 
+    if (!receivingDate) {
+      setError("Выберите дату поставки");
+      return;
+    }
+
     const response = await fetch(`${API_BASE}/receiving-orders`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: Number(receivingClientId),
         complexServiceId: Number(receivingComplexServiceId),
+        receivingDate,
         containerNumbers: receivingContainers,
       }),
     });
@@ -340,6 +352,7 @@ function App() {
     const createdOrder: ReceivingOrder = await response.json();
     setReceivingClientId("");
     setReceivingComplexServiceId("");
+    setReceivingDate(todayLocalDate());
     setReceivingContainers([]);
     setIsReceivingDropdownOpen(false);
     await loadData();
@@ -495,11 +508,17 @@ function App() {
       return;
     }
 
+    if (!shippingDate) {
+      setError("Выберите дату вывоза");
+      return;
+    }
+
     const response = await fetch(`${API_BASE}/shipping-orders`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: Number(shippingClientId),
+        shippingDate,
         containerNumbers: shippingContainers,
       }),
     });
@@ -511,6 +530,7 @@ function App() {
 
     const createdOrder: ShippingOrder = await response.json();
     setShippingClientId("");
+    setShippingDate(todayLocalDate());
     setShippingContainers([]);
     await loadData();
     setSelectedShippingOrderId(createdOrder.id);
@@ -1048,6 +1068,14 @@ function App() {
       </aside>
 
       <section className="workspace">
+        <div className="system-calendar">
+          <label>
+            <CalendarDays size={18} />
+            <span>Расчетная дата</span>
+            <input type="date" value={billingDate} onChange={(event) => setBillingDate(event.target.value)} />
+          </label>
+        </div>
+
         {error && <div className="error">{error}</div>}
 
         {page === "receiving-list" && (
@@ -1069,12 +1097,14 @@ function App() {
             complexServices={complexServices}
             clientId={receivingClientId}
             complexServiceId={receivingComplexServiceId}
+            receivingDate={receivingDate}
             selectedContainers={receivingContainers}
             isContainerDropdownOpen={isReceivingDropdownOpen}
             onBack={() => setPage("receiving-list")}
             onSubmit={createReceivingOrder}
             onClientChange={setReceivingClientId}
             onComplexServiceChange={setReceivingComplexServiceId}
+            onReceivingDateChange={setReceivingDate}
             onContainersChange={setReceivingContainers}
             onToggleContainer={toggleReceivingContainer}
             onToggleContainerDropdown={() => setIsReceivingDropdownOpen((value) => !value)}
@@ -1130,6 +1160,7 @@ function App() {
             shippingOrders={shippingOrders}
             ownerHistory={containerOwnerHistory}
             containers={containers}
+            billingDate={billingDate}
             onOpenClient={(clientId) => {
               setSelectedBillingClientId(clientId);
               setSelectedBillingOrderId(null);
@@ -1145,6 +1176,7 @@ function App() {
             shippingOrders={shippingOrders}
             ownerHistory={containerOwnerHistory}
             containers={containers}
+            billingDate={billingDate}
             onBack={() => setPage("billing-clients")}
           />
         )}
@@ -1155,6 +1187,7 @@ function App() {
             shippingOrders={shippingOrders}
             ownerHistory={containerOwnerHistory}
             containers={containers}
+            billingDate={billingDate}
             onBack={() => setPage("billing-client-details")}
           />
         )}
@@ -1176,6 +1209,7 @@ function App() {
             clients={clients}
             currentOwners={currentContainerOwners}
             clientId={shippingClientId}
+            shippingDate={shippingDate}
             selectedContainers={shippingContainers}
             onBack={() => setPage("shipping-list")}
             onSubmit={createShippingOrder}
@@ -1183,6 +1217,7 @@ function App() {
               setShippingClientId(value);
               setShippingContainers([]);
             }}
+            onShippingDateChange={setShippingDate}
             onContainersChange={setShippingContainers}
           />
         )}
@@ -1240,7 +1275,7 @@ function App() {
             history={selectedOwnerHistory}
             onBack={() => setPage("containers-list")}
             onOpenSource={openSource}
-            onStorageDaysChange={updateContainerStorageDays}
+            billingDate={billingDate}
           />
         )}
 
@@ -2075,13 +2110,13 @@ function ContainerOwnerDetailsPage({
   history,
   onBack,
   onOpenSource,
-  onStorageDaysChange,
+  billingDate,
 }: {
   container: Container | null;
   history: ContainerOwnerHistory[];
   onBack: () => void;
   onOpenSource: (history: ContainerOwnerHistory) => void;
-  onStorageDaysChange: (containerId: number, storageDays: number) => void;
+  billingDate: string;
 }) {
   if (!container) {
     return <NotSelected title="КТК не выбран" onBack={onBack} />;
@@ -2098,31 +2133,8 @@ function ContainerOwnerDetailsPage({
         <PageCard>
           <div className="billing-days-control">
             <div>
-              <span>Дней хранения</span>
-              <strong>{activeOwner ? activeOwner.storageDays : "Закрыто"}</strong>
-            </div>
-            <div className="billing-stepper">
-              <button
-                type="button"
-                disabled={!activeOwner}
-                onClick={() => activeOwner && onStorageDaysChange(container.id, activeOwner.storageDays - 1)}
-              >
-                -
-              </button>
-              <input
-                min={0}
-                type="number"
-                disabled={!activeOwner}
-                value={activeOwner?.storageDays ?? 0}
-                onChange={(event) => onStorageDaysChange(container.id, Number(event.target.value) || 0)}
-              />
-              <button
-                type="button"
-                disabled={!activeOwner}
-                onClick={() => activeOwner && onStorageDaysChange(container.id, activeOwner.storageDays + 1)}
-              >
-                +
-              </button>
+              <span>Дней хранения на {formatDate(billingDate)}</span>
+              <strong>{activeOwner ? storageDaysForOwner(activeOwner, billingDate) : "Закрыто"}</strong>
             </div>
           </div>
         </PageCard>
@@ -2130,7 +2142,7 @@ function ContainerOwnerDetailsPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дней хранения", "Дата"]}>
+          <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дней хранения", "Период"]}>
             {history.map((item) => (
               <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
                 <td>{item.client.name}</td>
@@ -2144,8 +2156,8 @@ function ContainerOwnerDetailsPage({
                     "-"
                   )}
                 </td>
-                <td>{item.storageDays}</td>
-                <td>{formatDateTime(item.validFrom)}</td>
+                <td>{storageDaysForOwner(item, billingDate)}</td>
+                <td>{formatDateTime(item.validFrom)} - {item.validTo ? formatDateTime(item.validTo) : formatDate(billingDate)}</td>
               </tr>
             ))}
             {history.length === 0 && <EmptyRow colSpan={5} text="Истории владения пока нет" />}
@@ -2162,12 +2174,14 @@ function CreateReceivingOrderPage(props: {
   complexServices: ComplexService[];
   clientId: string;
   complexServiceId: string;
+  receivingDate: string;
   selectedContainers: string[];
   isContainerDropdownOpen: boolean;
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClientChange: (value: string) => void;
   onComplexServiceChange: (value: string) => void;
+  onReceivingDateChange: (value: string) => void;
   onContainersChange: (value: string[]) => void;
   onToggleContainer: (number: string) => void;
   onToggleContainerDropdown: () => void;
@@ -2205,6 +2219,10 @@ function CreateReceivingOrderPage(props: {
               }))}
               onChange={(value) => props.onComplexServiceChange(value ? String(value) : "")}
             />
+            <label>
+              Дата поставки
+              <input type="date" value={props.receivingDate} onChange={(event) => props.onReceivingDateChange(event.target.value)} />
+            </label>
             <SelectMulti
               label="КТК"
               placeholder=" "
@@ -2229,10 +2247,12 @@ function CreateShippingOrderPage(props: {
   clients: Client[];
   currentOwners: CurrentContainerOwner[];
   clientId: string;
+  shippingDate: string;
   selectedContainers: string[];
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClientChange: (value: string) => void;
+  onShippingDateChange: (value: string) => void;
   onContainersChange: (value: string[]) => void;
 }) {
   const availableContainers = props.clientId
@@ -2262,6 +2282,10 @@ function CreateShippingOrderPage(props: {
               options={props.clients.map((client) => ({ value: client.id, label: client.name }))}
               onChange={(value) => props.onClientChange(value ? String(value) : "")}
             />
+            <label>
+              Дата вывоза
+              <input type="date" value={props.shippingDate} onChange={(event) => props.onShippingDateChange(event.target.value)} />
+            </label>
             <SelectMulti
               label="КТК"
               placeholder={props.clientId ? " " : "Сначала выберите клиента"}
@@ -2382,6 +2406,7 @@ function ReceivingOrderDetailsPage({
               <DetailItem label="Номер заявки" value={order.number} />
               <DetailItem label="Клиент" value={order.client.name} />
               <DetailItem label="Статус" value={receivingOrderStatusLabel(order.status)} />
+              <DetailItem label="Дата поставки" value={formatDate(order.receivingDate)} />
               <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
             </div>
 
@@ -2555,15 +2580,17 @@ function BillingClientsPage({
   shippingOrders,
   ownerHistory,
   containers,
+  billingDate,
   onOpenClient,
 }: {
   orders: ReceivingOrder[];
   shippingOrders: ShippingOrder[];
   ownerHistory: ContainerOwnerHistory[];
   containers: Container[];
+  billingDate: string;
   onOpenClient: (clientId: number) => void;
 }) {
-  const rows = billingRows(orders, shippingOrders, ownerHistory, containers);
+  const rows = billingRows(orders, shippingOrders, ownerHistory, containers, billingDate);
   const total = rows.reduce((sum, row) => sum + row.amount, 0);
   const clients = billingClientSummaries(orders, rows);
 
@@ -2596,6 +2623,7 @@ function BillingClientDetailsPage({
   shippingOrders,
   ownerHistory,
   containers,
+  billingDate,
   onBack,
 }: {
   client: Client | null;
@@ -2603,13 +2631,14 @@ function BillingClientDetailsPage({
   shippingOrders: ShippingOrder[];
   ownerHistory: ContainerOwnerHistory[];
   containers: Container[];
+  billingDate: string;
   onBack: () => void;
 }) {
   if (!client) {
     return <NotSelected title="Клиент не выбран" onBack={onBack} />;
   }
 
-  const rows = billingRows(orders, shippingOrders, ownerHistory, containers).filter((row) => row.clientId === client.id);
+  const rows = billingRows(orders, shippingOrders, ownerHistory, containers, billingDate).filter((row) => row.clientId === client.id);
   const serviceSummaries = billingServiceSummaries(rows);
   const total = rows.reduce((sum, row) => sum + row.amount, 0);
 
@@ -2644,19 +2673,21 @@ function BillingOrderDetailsPage({
   shippingOrders,
   ownerHistory,
   containers,
+  billingDate,
   onBack,
 }: {
   order: ReceivingOrder | null;
   shippingOrders: ShippingOrder[];
   ownerHistory: ContainerOwnerHistory[];
   containers: Container[];
+  billingDate: string;
   onBack: () => void;
 }) {
   if (!order) {
     return <NotSelected title="Заявка не выбрана" onBack={onBack} />;
   }
 
-  const rows = billingRows([order], shippingOrders, ownerHistory, containers);
+  const rows = billingRows([order], shippingOrders, ownerHistory, containers, billingDate);
   const total = rows.reduce((sum, row) => sum + row.amount, 0);
 
   return (
@@ -2730,6 +2761,7 @@ function ShippingOrderDetailsPage({
               <DetailItem label="Номер заявки" value={order.number} />
               <DetailItem label="Клиент" value={order.client.name} />
               <DetailItem label="Статус" value={shippingOrderStatusLabel(order.status)} />
+              <DetailItem label="Дата вывоза" value={formatDate(order.shippingDate)} />
               <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
               <DetailItem label="Дата выполнения" value={order.completedAt ? formatDateTime(order.completedAt) : "-"} />
             </div>
@@ -2985,6 +3017,57 @@ function formatDateTime(value: string) {
   });
 }
 
+function formatDate(value: string) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Date(`${value}T00:00:00`).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function todayLocalDate() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function storageDaysForOwner(owner: ContainerOwnerHistory, billingDate: string) {
+  if (!billingDate) {
+    return 0;
+  }
+
+  const start = localDateOnly(owner.validFrom);
+  const billing = localDateOnly(billingDate);
+  const rawEnd = owner.validTo ? addDays(localDateOnly(owner.validTo), -1) : billing;
+  const end = rawEnd.getTime() > billing.getTime() ? billing : rawEnd;
+
+  if (end.getTime() < start.getTime()) {
+    return 0;
+  }
+
+  return daysBetween(start, end) + 1;
+}
+
+function localDateOnly(value: string) {
+  const datePart = value.includes("T") ? value.slice(0, 10) : value;
+  return new Date(`${datePart}T00:00:00`);
+}
+
+function addDays(value: Date, days: number) {
+  const next = new Date(value);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function daysBetween(start: Date, end: Date) {
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  return Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay);
+}
+
 function receivingOrderStatusLabel(status: ReceivingOrderStatus) {
   switch (status) {
     case "DRAFT":
@@ -3059,8 +3142,10 @@ function billingRows(
   shippingOrders: ShippingOrder[],
   ownerHistory: ContainerOwnerHistory[],
   containers: Container[],
+  billingDate: string,
 ): BillingRow[] {
   const rows: BillingRow[] = [];
+  void shippingOrders;
 
   for (const order of orders) {
     for (const link of order.containers) {
@@ -3085,7 +3170,7 @@ function billingRows(
   }
 
   for (const owner of ownerHistory) {
-    const storageDays = owner.storageDays;
+    const storageDays = storageDaysForOwner(owner, billingDate);
     if (storageDays === 0) {
       continue;
     }
