@@ -46,20 +46,22 @@ public class ContainerStorageService {
         ContainerStorageSourceType sourceType,
         Long sourceId
     ) {
-        return periodRepository
+        ContainerStoragePeriod period = periodRepository
             .findByContainerIdAndStatus(container.getId(), ContainerStoragePeriodStatus.ACTIVE)
             .orElseGet(() -> {
-                ContainerStoragePeriod period = new ContainerStoragePeriod();
-                period.setContainer(container);
-                period.setContainerNumber(container.getNumber());
-                period.setClient(client);
-                period.setService(service);
-                period.setDateFrom(dateFrom);
-                period.setStatus(ContainerStoragePeriodStatus.ACTIVE);
-                period.setSourceType(sourceType);
-                period.setSourceId(sourceId);
-                return periodRepository.save(period);
+                ContainerStoragePeriod newPeriod = new ContainerStoragePeriod();
+                newPeriod.setContainer(container);
+                newPeriod.setContainerNumber(container.getNumber());
+                newPeriod.setClient(client);
+                newPeriod.setService(service);
+                newPeriod.setDateFrom(dateFrom);
+                newPeriod.setStatus(ContainerStoragePeriodStatus.ACTIVE);
+                newPeriod.setSourceType(sourceType);
+                newPeriod.setSourceId(sourceId);
+                return periodRepository.save(newPeriod);
             });
+        accrueStorageDay(dateFrom);
+        return period;
     }
 
     @Transactional
