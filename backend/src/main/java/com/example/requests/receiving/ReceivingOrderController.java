@@ -31,6 +31,7 @@ public class ReceivingOrderController {
     private final ContainerOwnerService containerOwnerService;
     private final ComplexServiceRepository complexServiceRepository;
     private final BillingServiceExecutionRepository serviceExecutionRepository;
+    private final ContainerStorageService storageService;
 
     public ReceivingOrderController(
         ReceivingOrderRepository orderRepository,
@@ -38,7 +39,8 @@ public class ReceivingOrderController {
         ClientRepository clientRepository,
         ContainerOwnerService containerOwnerService,
         ComplexServiceRepository complexServiceRepository,
-        BillingServiceExecutionRepository serviceExecutionRepository
+        BillingServiceExecutionRepository serviceExecutionRepository,
+        ContainerStorageService storageService
     ) {
         this.orderRepository = orderRepository;
         this.containerRepository = containerRepository;
@@ -46,6 +48,7 @@ public class ReceivingOrderController {
         this.containerOwnerService = containerOwnerService;
         this.complexServiceRepository = complexServiceRepository;
         this.serviceExecutionRepository = serviceExecutionRepository;
+        this.storageService = storageService;
     }
 
     @GetMapping
@@ -194,6 +197,13 @@ public class ReceivingOrderController {
         if (link.getStatus() != ReceivingOrderContainerStatus.FINISHED) {
             link.setStatus(ReceivingOrderContainerStatus.FINISHED);
             link.setFinishedAt(startOfDay(dto.actualDate()));
+            storageService.openStoragePeriod(
+                link.getContainer(),
+                order.getClient(),
+                dto.actualDate(),
+                ContainerStorageSourceType.RECEIVING_ORDER,
+                link.getId()
+            );
         }
 
         boolean allContainersFinished = order.getContainers().stream()

@@ -25,6 +25,7 @@ public class ContainerOwnerService {
     private final BillingServiceRepository billingServiceRepository;
     private final ReceivingOrderContainerRepository receivingOrderContainerRepository;
     private final ShippingOrderContainerRepository shippingOrderContainerRepository;
+    private final ContainerStorageService storageService;
 
     public ContainerOwnerService(
         ContainerOwnerHistoryRepository historyRepository,
@@ -33,7 +34,8 @@ public class ContainerOwnerService {
         ClientRepository clientRepository,
         BillingServiceRepository billingServiceRepository,
         ReceivingOrderContainerRepository receivingOrderContainerRepository,
-        ShippingOrderContainerRepository shippingOrderContainerRepository
+        ShippingOrderContainerRepository shippingOrderContainerRepository,
+        ContainerStorageService storageService
     ) {
         this.historyRepository = historyRepository;
         this.changeOrderRepository = changeOrderRepository;
@@ -42,6 +44,7 @@ public class ContainerOwnerService {
         this.billingServiceRepository = billingServiceRepository;
         this.receivingOrderContainerRepository = receivingOrderContainerRepository;
         this.shippingOrderContainerRepository = shippingOrderContainerRepository;
+        this.storageService = storageService;
     }
 
     @Transactional
@@ -112,6 +115,8 @@ public class ContainerOwnerService {
 
     @Transactional
     public ContainerOwnerChangeOrder createChangeOrder(CreateContainerOwnerChangeOrderDto dto) {
+        validateOwnerChangeDate(dto.serviceDate());
+
         BillingService service = billingServiceRepository.findWithOperationsById(dto.serviceId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown service"));
         if (!isOwnerChangeService(service)) {
@@ -177,6 +182,8 @@ public class ContainerOwnerService {
     @Transactional
     public ContainerOwnerChangeOrder completeChangeOrder(Long id) {
         ContainerOwnerChangeOrder order = loadChangeOrder(id);
+        validateOwnerChangeDate(order.getServiceDate());
+
         if (order.getStatus() != ContainerOwnerChangeOrderStatus.DRAFT) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only draft owner change orders can be completed");
         }
@@ -211,6 +218,15 @@ public class ContainerOwnerService {
             next.setValidFrom(now);
             next.setCreatedBy(currentUser());
             historyRepository.save(next);
+
+            storageService.closeStoragePeriod(link.getContainer(), order.getServiceDate());
+            storageService.openStoragePeriod(
+                link.getContainer(),
+                order.getNewClient(),
+                order.getServiceDate(),
+                ContainerStorageSourceType.OWNER_CHANGE_ORDER,
+                order.getId()
+            );
         }
 
         order.setStatus(ContainerOwnerChangeOrderStatus.COMPLETED);
@@ -386,6 +402,15 @@ public class ContainerOwnerService {
             next.setValidFrom(completedAt);
             next.setCreatedBy(currentUser());
             historyRepository.save(next);
+
+            storageService.closeStoragePeriod(link.getContainer(), order.getServiceDate());
+            storageService.openStoragePeriod(
+                link.getContainer(),
+                order.getNewClient(),
+                order.getServiceDate(),
+                ContainerStorageSourceType.OWNER_CHANGE_ORDER,
+                order.getId()
+            );
         }
 
         order.setCompletedAt(completedAt);
@@ -398,6 +423,12 @@ public class ContainerOwnerService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Container can be selected only once");
         }
         return List.copyOf(unique);
+    }
+
+    private void validateOwnerChangeDate(LocalDate changeDate) {
+        if (changeDate.isBefore(LocalDate.now())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Смена владельца задним числом недоступна");
+        }
     }
 
     private String nextChangeOrderNumber() {
