@@ -32,6 +32,7 @@ public class ReceivingOrderController {
     private final ComplexServiceRepository complexServiceRepository;
     private final BillingServiceExecutionRepository serviceExecutionRepository;
     private final ContainerStorageService storageService;
+    private final TosOperationFactService tosOperationFactService;
 
     public ReceivingOrderController(
         ReceivingOrderRepository orderRepository,
@@ -40,7 +41,8 @@ public class ReceivingOrderController {
         ContainerOwnerService containerOwnerService,
         ComplexServiceRepository complexServiceRepository,
         BillingServiceExecutionRepository serviceExecutionRepository,
-        ContainerStorageService storageService
+        ContainerStorageService storageService,
+        TosOperationFactService tosOperationFactService
     ) {
         this.orderRepository = orderRepository;
         this.containerRepository = containerRepository;
@@ -49,6 +51,7 @@ public class ReceivingOrderController {
         this.complexServiceRepository = complexServiceRepository;
         this.serviceExecutionRepository = serviceExecutionRepository;
         this.storageService = storageService;
+        this.tosOperationFactService = tosOperationFactService;
     }
 
     @GetMapping
@@ -171,6 +174,7 @@ public class ReceivingOrderController {
         execution.setQuantity(nextQuantity);
         execution.setAmount(amount);
         serviceExecutionRepository.saveAndFlush(execution);
+        tosOperationFactService.recordReceivingServiceFinished(order, link, execution, nextQuantity);
 
         return ReceivingOrderResponse.fromEntity(orderRepository.findWithContainersById(orderId).orElse(order));
     }
@@ -204,6 +208,7 @@ public class ReceivingOrderController {
                 ContainerStorageSourceType.RECEIVING_ORDER,
                 link.getId()
             );
+            tosOperationFactService.recordReceivingContainerFinished(order, link, dto.actualDate());
         }
 
         boolean allContainersFinished = order.getContainers().stream()

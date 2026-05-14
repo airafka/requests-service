@@ -29,19 +29,22 @@ public class ShippingOrderController {
     private final ClientRepository clientRepository;
     private final ContainerOwnerService containerOwnerService;
     private final ContainerStorageService storageService;
+    private final TosOperationFactService tosOperationFactService;
 
     public ShippingOrderController(
         ShippingOrderRepository orderRepository,
         ContainerRepository containerRepository,
         ClientRepository clientRepository,
         ContainerOwnerService containerOwnerService,
-        ContainerStorageService storageService
+        ContainerStorageService storageService,
+        TosOperationFactService tosOperationFactService
     ) {
         this.orderRepository = orderRepository;
         this.containerRepository = containerRepository;
         this.clientRepository = clientRepository;
         this.containerOwnerService = containerOwnerService;
         this.storageService = storageService;
+        this.tosOperationFactService = tosOperationFactService;
     }
 
     @GetMapping
@@ -108,6 +111,7 @@ public class ShippingOrderController {
             link.setStatus(ShippingOrderContainerStatus.FINISHED);
             link.setFinishedAt(startOfDay(dto.actualDate()));
             storageService.closeStoragePeriod(link.getContainer(), dto.actualDate());
+            tosOperationFactService.recordShippingContainerFinished(order, link, dto.actualDate());
         }
 
         boolean allContainersFinished = order.getContainers().stream()
