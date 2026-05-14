@@ -10,7 +10,8 @@ public record ReceivingOrderResponse(
     ClientResponse client,
     ComplexServiceResponse complexService,
     OffsetDateTime createdAt,
-    LocalDate receivingDate,
+    LocalDate plannedReceivingDate,
+    LocalDate actualReceivingDate,
     ReceivingOrderStatus status,
     List<ReceivingOrderContainerResponse> containers
 ) {
@@ -25,7 +26,8 @@ public record ReceivingOrderResponse(
             ClientResponse.fromEntity(order.getClient()),
             order.getComplexService() == null ? null : ComplexServiceResponse.fromEntity(order.getComplexService()),
             order.getCreatedAt(),
-            order.getReceivingDate(),
+            order.getPlannedReceivingDate(),
+            order.getActualReceivingDate(),
             order.getStatus(),
             containers
         );

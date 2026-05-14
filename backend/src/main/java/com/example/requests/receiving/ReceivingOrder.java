@@ -41,8 +41,10 @@ public class ReceivingOrder {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
-    @Column(nullable = false)
-    private LocalDate receivingDate;
+    @Column(name = "receiving_date", nullable = false)
+    private LocalDate plannedReceivingDate;
+
+    private LocalDate actualReceivingDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -54,8 +56,8 @@ public class ReceivingOrder {
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();
-        if (receivingDate == null) {
-            receivingDate = LocalDate.now();
+        if (plannedReceivingDate == null) {
+            plannedReceivingDate = LocalDate.now();
         }
     }
 
@@ -91,12 +93,20 @@ public class ReceivingOrder {
         return createdAt;
     }
 
-    public LocalDate getReceivingDate() {
-        return receivingDate;
+    public LocalDate getPlannedReceivingDate() {
+        return plannedReceivingDate;
     }
 
-    public void setReceivingDate(LocalDate receivingDate) {
-        this.receivingDate = receivingDate;
+    public void setPlannedReceivingDate(LocalDate plannedReceivingDate) {
+        this.plannedReceivingDate = plannedReceivingDate;
+    }
+
+    public LocalDate getActualReceivingDate() {
+        return actualReceivingDate;
+    }
+
+    public void setActualReceivingDate(LocalDate actualReceivingDate) {
+        this.actualReceivingDate = actualReceivingDate;
     }
 
     public ReceivingOrderStatus getStatus() {

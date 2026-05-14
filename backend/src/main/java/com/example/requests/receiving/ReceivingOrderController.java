@@ -19,7 +19,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 
@@ -86,7 +85,7 @@ public class ReceivingOrderController {
         order.setNumber(nextOrderNumber());
         order.setClient(client);
         order.setComplexService(complexService);
-        order.setReceivingDate(dto.receivingDate());
+        order.setPlannedReceivingDate(dto.plannedReceivingDate());
         requestedNumbers.forEach(number -> order.addContainer(containersByNumber.get(normalize(number))));
 
         ReceivingOrder saved = orderRepository.saveAndFlush(order);
@@ -175,7 +174,11 @@ public class ReceivingOrderController {
 
     @PostMapping("/{orderId}/containers/{linkId}/finish")
     @Transactional
-    public ReceivingOrderResponse finishContainer(@PathVariable Long orderId, @PathVariable Long linkId) {
+    public ReceivingOrderResponse finishContainer(
+        @PathVariable Long orderId,
+        @PathVariable Long linkId,
+        @Valid @RequestBody FinishContainerDto dto
+    ) {
         ReceivingOrder order = orderRepository.findWithContainersById(orderId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Receiving order was not found"));
 
@@ -190,7 +193,7 @@ public class ReceivingOrderController {
 
         if (link.getStatus() != ReceivingOrderContainerStatus.FINISHED) {
             link.setStatus(ReceivingOrderContainerStatus.FINISHED);
-            link.setFinishedAt(startOfDay(order.getReceivingDate()));
+            link.setFinishedAt(startOfDay(dto.actualDate()));
         }
 
         boolean allContainersFinished = order.getContainers().stream()
@@ -198,6 +201,7 @@ public class ReceivingOrderController {
 
         if (allContainersFinished && order.getStatus() != ReceivingOrderStatus.COMPLETED) {
             order.setStatus(ReceivingOrderStatus.COMPLETED);
+            order.setActualReceivingDate(dto.actualDate());
             containerOwnerService.createReceivingHistory(order);
         }
 
@@ -212,7 +216,7 @@ public class ReceivingOrderController {
         return value.trim().toUpperCase();
     }
 
-    private OffsetDateTime startOfDay(LocalDate date) {
+    private OffsetDateTime startOfDay(java.time.LocalDate date) {
         return date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
     }
 }

@@ -9,7 +9,8 @@ public record ShippingOrderResponse(
     String number,
     ClientResponse client,
     OffsetDateTime createdAt,
-    LocalDate shippingDate,
+    LocalDate plannedShippingDate,
+    LocalDate actualShippingDate,
     ShippingOrderStatus status,
     OffsetDateTime completedAt,
     List<ShippingOrderContainerResponse> containers
@@ -24,7 +25,8 @@ public record ShippingOrderResponse(
             order.getNumber(),
             ClientResponse.fromEntity(order.getClient()),
             order.getCreatedAt(),
-            order.getShippingDate(),
+            order.getPlannedShippingDate(),
+            order.getActualShippingDate(),
             order.getStatus(),
             order.getCompletedAt(),
             containers

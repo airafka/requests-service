@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -21,6 +22,7 @@ public class ContainerOwnerService {
     private final ContainerOwnerChangeOrderRepository changeOrderRepository;
     private final ContainerRepository containerRepository;
     private final ClientRepository clientRepository;
+    private final BillingServiceRepository billingServiceRepository;
     private final ReceivingOrderContainerRepository receivingOrderContainerRepository;
     private final ShippingOrderContainerRepository shippingOrderContainerRepository;
 
@@ -29,6 +31,7 @@ public class ContainerOwnerService {
         ContainerOwnerChangeOrderRepository changeOrderRepository,
         ContainerRepository containerRepository,
         ClientRepository clientRepository,
+        BillingServiceRepository billingServiceRepository,
         ReceivingOrderContainerRepository receivingOrderContainerRepository,
         ShippingOrderContainerRepository shippingOrderContainerRepository
     ) {
@@ -36,17 +39,20 @@ public class ContainerOwnerService {
         this.changeOrderRepository = changeOrderRepository;
         this.containerRepository = containerRepository;
         this.clientRepository = clientRepository;
+        this.billingServiceRepository = billingServiceRepository;
         this.receivingOrderContainerRepository = receivingOrderContainerRepository;
         this.shippingOrderContainerRepository = shippingOrderContainerRepository;
     }
 
     @Transactional
     public void createReceivingHistory(ReceivingOrder order) {
-        OffsetDateTime receivedAt = startOfDay(order.getReceivingDate());
         for (ReceivingOrderContainer link : order.getContainers()) {
             if (historyRepository.existsByOperationTypeAndSourceId(ContainerOwnerOperationType.RECEIVING, link.getId())) {
                 continue;
             }
+            OffsetDateTime receivedAt = link.getFinishedAt() == null
+                ? startOfDay(order.getActualReceivingDate())
+                : link.getFinishedAt();
 
             historyRepository.findByContainerIdAndValidToIsNull(link.getContainer().getId())
                 .ifPresent(active -> {
@@ -67,11 +73,13 @@ public class ContainerOwnerService {
 
     @Transactional
     public void createShippingHistory(ShippingOrder order) {
-        OffsetDateTime shippedAt = startOfDay(order.getShippingDate());
         for (ShippingOrderContainer link : order.getContainers()) {
             if (historyRepository.existsByOperationTypeAndSourceId(ContainerOwnerOperationType.SHIPPING, link.getId())) {
                 continue;
             }
+            OffsetDateTime shippedAt = link.getFinishedAt() == null
+                ? startOfDay(order.getActualShippingDate())
+                : link.getFinishedAt();
 
             ContainerOwnerHistory active = historyRepository
                 .findByContainerIdAndValidToIsNull(link.getContainer().getId())
@@ -104,6 +112,12 @@ public class ContainerOwnerService {
 
     @Transactional
     public ContainerOwnerChangeOrder createChangeOrder(CreateContainerOwnerChangeOrderDto dto) {
+        BillingService service = billingServiceRepository.findWithOperationsById(dto.serviceId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown service"));
+        if (!isOwnerChangeService(service)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only owner change service is supported for this request");
+        }
+
         ClientEntity newClient = clientRepository.findById(dto.newClientId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown client"));
 
@@ -147,6 +161,8 @@ public class ContainerOwnerService {
 
         ContainerOwnerChangeOrder order = new ContainerOwnerChangeOrder();
         order.setNumber(nextChangeOrderNumber());
+        order.setService(service);
+        order.setServiceDate(dto.serviceDate());
         order.setNewClient(newClient);
         order.setStatus(ContainerOwnerChangeOrderStatus.COMPLETED);
         order.setComment(dto.comment());
@@ -154,7 +170,7 @@ public class ContainerOwnerService {
         requestedContainerIds.forEach(containerId -> order.addContainer(containersById.get(containerId)));
 
         ContainerOwnerChangeOrder saved = changeOrderRepository.saveAndFlush(order);
-        applyOwnerChange(saved, OffsetDateTime.now());
+        applyOwnerChange(saved, startOfDay(saved.getServiceDate()));
         return saved;
     }
 
@@ -168,7 +184,7 @@ public class ContainerOwnerService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose at least one container");
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = startOfDay(order.getServiceDate());
         for (ContainerOwnerChangeOrderContainer link : order.getContainers()) {
             ContainerOwnerHistory active = historyRepository
                 .findByContainerIdAndValidToIsNull(link.getContainer().getId())
@@ -394,5 +410,10 @@ public class ContainerOwnerService {
 
     private OffsetDateTime startOfDay(LocalDate date) {
         return date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
+    }
+
+    private boolean isOwnerChangeService(BillingService service) {
+        return "\u0441\u043c\u0435\u043d\u0430 \u0432\u043b\u0430\u0434\u0435\u043b\u044c\u0446\u0430"
+            .equals(service.getName().trim().toLowerCase(Locale.ROOT));
     }
 }

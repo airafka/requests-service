@@ -73,7 +73,8 @@ type ReceivingOrder = {
   client: Client;
   complexService: ComplexService | null;
   createdAt: string;
-  receivingDate: string;
+  plannedReceivingDate: string;
+  actualReceivingDate: string | null;
   status: ReceivingOrderStatus;
   containers: ReceivingOrderContainer[];
 };
@@ -93,7 +94,8 @@ type ShippingOrder = {
   number: string;
   client: Client;
   createdAt: string;
-  shippingDate: string;
+  plannedShippingDate: string;
+  actualShippingDate: string | null;
   status: ShippingOrderStatus;
   completedAt: string | null;
   containers: ShippingOrderContainer[];
@@ -102,6 +104,8 @@ type ShippingOrder = {
 type OwnerChangeOrder = {
   id: number;
   number: string;
+  service: BillingService;
+  serviceDate: string;
   newClient: Client;
   comment: string | null;
   createdAt: string;
@@ -208,12 +212,14 @@ function App() {
   const [selectedComplexServiceId, setSelectedComplexServiceId] = React.useState<number | null>(null);
   const [receivingClientId, setReceivingClientId] = React.useState("");
   const [receivingComplexServiceId, setReceivingComplexServiceId] = React.useState("");
-  const [receivingDate, setReceivingDate] = React.useState(todayLocalDate());
+  const [plannedReceivingDate, setPlannedReceivingDate] = React.useState(todayLocalDate());
   const [receivingContainers, setReceivingContainers] = React.useState<string[]>([]);
   const [shippingClientId, setShippingClientId] = React.useState("");
-  const [shippingDate, setShippingDate] = React.useState(todayLocalDate());
+  const [plannedShippingDate, setPlannedShippingDate] = React.useState(todayLocalDate());
   const [shippingContainers, setShippingContainers] = React.useState<string[]>([]);
   const [billingDate, setBillingDate] = React.useState(todayLocalDate());
+  const [ownerServiceId, setOwnerServiceId] = React.useState("");
+  const [ownerServiceDate, setOwnerServiceDate] = React.useState(todayLocalDate());
   const [ownerClientId, setOwnerClientId] = React.useState("");
   const [ownerComment, setOwnerComment] = React.useState("");
   const [ownerContainers, setOwnerContainers] = React.useState<number[]>([]);
@@ -227,7 +233,6 @@ function App() {
   const [newComplexServiceCoefficient, setNewComplexServiceCoefficient] = React.useState("1");
   const [newComplexServiceItems, setNewComplexServiceItems] = React.useState<ComplexServiceFormItem[]>([]);
   const [isReceivingDropdownOpen, setIsReceivingDropdownOpen] = React.useState(false);
-  const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -328,8 +333,8 @@ function App() {
       return;
     }
 
-    if (!receivingDate) {
-      setError("Выберите дату поставки");
+    if (!plannedReceivingDate) {
+      setError("Выберите плановую дату поставки");
       return;
     }
 
@@ -339,7 +344,7 @@ function App() {
       body: JSON.stringify({
         clientId: Number(receivingClientId),
         complexServiceId: Number(receivingComplexServiceId),
-        receivingDate,
+        plannedReceivingDate,
         containerNumbers: receivingContainers,
       }),
     });
@@ -352,7 +357,7 @@ function App() {
     const createdOrder: ReceivingOrder = await response.json();
     setReceivingClientId("");
     setReceivingComplexServiceId("");
-    setReceivingDate(todayLocalDate());
+    setPlannedReceivingDate(todayLocalDate());
     setReceivingContainers([]);
     setIsReceivingDropdownOpen(false);
     await loadData();
@@ -383,6 +388,8 @@ function App() {
 
     const response = await fetch(`${API_BASE}/receiving-orders/${orderId}/containers/${linkId}/finish`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actualDate: billingDate }),
     });
 
     if (!response.ok) {
@@ -419,6 +426,8 @@ function App() {
 
     const response = await fetch(`${API_BASE}/shipping-orders/${orderId}/containers/${linkId}/finish`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actualDate: billingDate }),
     });
 
     if (!response.ok) {
@@ -459,6 +468,22 @@ function App() {
     event.preventDefault();
     setError(null);
 
+    if (!ownerServiceId) {
+      setError("Выберите услугу");
+      return;
+    }
+
+    const selectedService = billingServices.find((service) => service.id === Number(ownerServiceId));
+    if (!selectedService || !isOwnerChangeService(selectedService)) {
+      setError("Для выбранной услуги пока не настроена форма заявки");
+      return;
+    }
+
+    if (!ownerServiceDate) {
+      setError("Выберите дату услуги");
+      return;
+    }
+
     if (!ownerClientId) {
       setError("Выберите нового владельца");
       return;
@@ -473,6 +498,8 @@ function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        serviceId: Number(ownerServiceId),
+        serviceDate: ownerServiceDate,
         newClientId: Number(ownerClientId),
         comment: ownerComment,
         containerIds: ownerContainers,
@@ -480,15 +507,16 @@ function App() {
     });
 
     if (!response.ok) {
-      setError(await errorText(response, "Не удалось создать заявку на смену владельца"));
+      setError(await errorText(response, "Не удалось создать заявку на услугу"));
       return;
     }
 
     const createdOrder: OwnerChangeOrder = await response.json();
+    setOwnerServiceId("");
+    setOwnerServiceDate(todayLocalDate());
     setOwnerClientId("");
     setOwnerComment("");
     setOwnerContainers([]);
-    setIsOwnerDropdownOpen(false);
     await loadData();
     setSelectedOwnerChangeOrderId(createdOrder.id);
     setPage("owner-details");
@@ -508,8 +536,8 @@ function App() {
       return;
     }
 
-    if (!shippingDate) {
-      setError("Выберите дату вывоза");
+    if (!plannedShippingDate) {
+      setError("Выберите плановую дату вывоза");
       return;
     }
 
@@ -518,7 +546,7 @@ function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: Number(shippingClientId),
-        shippingDate,
+        plannedShippingDate,
         containerNumbers: shippingContainers,
       }),
     });
@@ -530,7 +558,7 @@ function App() {
 
     const createdOrder: ShippingOrder = await response.json();
     setShippingClientId("");
-    setShippingDate(todayLocalDate());
+    setPlannedShippingDate(todayLocalDate());
     setShippingContainers([]);
     await loadData();
     setSelectedShippingOrderId(createdOrder.id);
@@ -915,12 +943,6 @@ function App() {
     );
   }
 
-  function toggleOwnerContainer(id: number) {
-    setOwnerContainers((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
-    );
-  }
-
   async function openContainerOwnerDetails(container: Container) {
     setError(null);
     setSelectedOwnerContainer(container);
@@ -1014,7 +1036,7 @@ function App() {
             onClick={() => setPage("owner-list")}
           >
             <Repeat2 size={18} />
-            <span>Заявки на смену владельца КТК</span>
+            <span>Заявки на услуги</span>
           </button>
           <button className={page.startsWith("tos") ? "active" : ""} type="button" onClick={() => setPage("tos-list")}>
             <ClipboardCheck size={18} />
@@ -1097,14 +1119,14 @@ function App() {
             complexServices={complexServices}
             clientId={receivingClientId}
             complexServiceId={receivingComplexServiceId}
-            receivingDate={receivingDate}
+            plannedReceivingDate={plannedReceivingDate}
             selectedContainers={receivingContainers}
             isContainerDropdownOpen={isReceivingDropdownOpen}
             onBack={() => setPage("receiving-list")}
             onSubmit={createReceivingOrder}
             onClientChange={setReceivingClientId}
             onComplexServiceChange={setReceivingComplexServiceId}
-            onReceivingDateChange={setReceivingDate}
+            onPlannedReceivingDateChange={setPlannedReceivingDate}
             onContainersChange={setReceivingContainers}
             onToggleContainer={toggleReceivingContainer}
             onToggleContainerDropdown={() => setIsReceivingDropdownOpen((value) => !value)}
@@ -1209,7 +1231,7 @@ function App() {
             clients={clients}
             currentOwners={currentContainerOwners}
             clientId={shippingClientId}
-            shippingDate={shippingDate}
+            plannedShippingDate={plannedShippingDate}
             selectedContainers={shippingContainers}
             onBack={() => setPage("shipping-list")}
             onSubmit={createShippingOrder}
@@ -1217,7 +1239,7 @@ function App() {
               setShippingClientId(value);
               setShippingContainers([]);
             }}
-            onShippingDateChange={setShippingDate}
+            onPlannedShippingDateChange={setPlannedShippingDate}
             onContainersChange={setShippingContainers}
           />
         )}
@@ -1245,19 +1267,24 @@ function App() {
         {page === "owner-create" && (
           <CreateOwnerChangeOrderPage
             clients={clients}
-            containers={containers}
+            services={billingServices}
+            currentOwners={currentContainerOwners}
+            serviceId={ownerServiceId}
+            serviceDate={ownerServiceDate}
             clientId={ownerClientId}
             comment={ownerComment}
             selectedContainers={ownerContainers}
-            isContainerDropdownOpen={isOwnerDropdownOpen}
             onBack={() => setPage("owner-list")}
             onSubmit={createOwnerChangeOrder}
+            onServiceChange={(value) => {
+              setOwnerServiceId(value);
+              setOwnerClientId("");
+              setOwnerContainers([]);
+            }}
+            onServiceDateChange={setOwnerServiceDate}
             onClientChange={setOwnerClientId}
             onCommentChange={setOwnerComment}
             onContainersChange={setOwnerContainers}
-            onToggleContainer={toggleOwnerContainer}
-            onToggleContainerDropdown={() => setIsOwnerDropdownOpen((value) => !value)}
-            onCloseContainerDropdown={() => setIsOwnerDropdownOpen(false)}
           />
         )}
 
@@ -1588,7 +1615,7 @@ function OwnerChangeOrdersListPage({
 }) {
   return (
     <>
-      <PageHead title="Заявки на смену владельца КТК">
+      <PageHead title="Заявки на услуги">
         <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
           Создать
         </BaseButton>
@@ -1596,16 +1623,17 @@ function OwnerChangeOrdersListPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Номер заявки", "Новый владелец", "КТК", "Дата создания"]}>
+          <OrdersTable columns={["Номер заявки", "Услуга", "Новый владелец", "КТК", "Дата услуги"]}>
             {orders.map((order) => (
               <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
                 <td>{order.number}</td>
+                <td>{order.service.name}</td>
                 <td>{order.newClient.name}</td>
                 <td>{order.containers.map((container) => container.number).join(", ")}</td>
-                <td>{formatDateTime(order.createdAt)}</td>
+                <td>{formatDate(order.serviceDate)}</td>
               </tr>
             ))}
-            {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+            {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -2174,14 +2202,14 @@ function CreateReceivingOrderPage(props: {
   complexServices: ComplexService[];
   clientId: string;
   complexServiceId: string;
-  receivingDate: string;
+  plannedReceivingDate: string;
   selectedContainers: string[];
   isContainerDropdownOpen: boolean;
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClientChange: (value: string) => void;
   onComplexServiceChange: (value: string) => void;
-  onReceivingDateChange: (value: string) => void;
+  onPlannedReceivingDateChange: (value: string) => void;
   onContainersChange: (value: string[]) => void;
   onToggleContainer: (number: string) => void;
   onToggleContainerDropdown: () => void;
@@ -2220,8 +2248,8 @@ function CreateReceivingOrderPage(props: {
               onChange={(value) => props.onComplexServiceChange(value ? String(value) : "")}
             />
             <label>
-              Дата поставки
-              <input type="date" value={props.receivingDate} onChange={(event) => props.onReceivingDateChange(event.target.value)} />
+              Плановая дата поставки
+              <input type="date" value={props.plannedReceivingDate} onChange={(event) => props.onPlannedReceivingDateChange(event.target.value)} />
             </label>
             <SelectMulti
               label="КТК"
@@ -2247,12 +2275,12 @@ function CreateShippingOrderPage(props: {
   clients: Client[];
   currentOwners: CurrentContainerOwner[];
   clientId: string;
-  shippingDate: string;
+  plannedShippingDate: string;
   selectedContainers: string[];
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onClientChange: (value: string) => void;
-  onShippingDateChange: (value: string) => void;
+  onPlannedShippingDateChange: (value: string) => void;
   onContainersChange: (value: string[]) => void;
 }) {
   const availableContainers = props.clientId
@@ -2283,8 +2311,8 @@ function CreateShippingOrderPage(props: {
               onChange={(value) => props.onClientChange(value ? String(value) : "")}
             />
             <label>
-              Дата вывоза
-              <input type="date" value={props.shippingDate} onChange={(event) => props.onShippingDateChange(event.target.value)} />
+              Плановая дата вывоза
+              <input type="date" value={props.plannedShippingDate} onChange={(event) => props.onPlannedShippingDateChange(event.target.value)} />
             </label>
             <SelectMulti
               label="КТК"
@@ -2308,28 +2336,35 @@ function CreateShippingOrderPage(props: {
 
 function CreateOwnerChangeOrderPage(props: {
   clients: Client[];
-  containers: Container[];
+  services: BillingService[];
+  currentOwners: CurrentContainerOwner[];
+  serviceId: string;
+  serviceDate: string;
   clientId: string;
   comment: string;
   selectedContainers: number[];
-  isContainerDropdownOpen: boolean;
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onServiceChange: (value: string) => void;
+  onServiceDateChange: (value: string) => void;
   onClientChange: (value: string) => void;
   onCommentChange: (value: string) => void;
   onContainersChange: (value: number[]) => void;
-  onToggleContainer: (id: number) => void;
-  onToggleContainerDropdown: () => void;
-  onCloseContainerDropdown: () => void;
 }) {
-  const containerOptions = props.containers.map((container) => ({
-    value: container.id,
-    label: container.number,
+  const selectedService = props.services.find((service) => service.id === Number(props.serviceId)) ?? null;
+  const isOwnerChangeSelected = selectedService ? isOwnerChangeService(selectedService) : false;
+  const serviceOptions = props.services.map((service) => ({
+    value: service.id,
+    label: service.name,
+  }));
+  const containerOptions = props.currentOwners.map((owner) => ({
+    value: owner.container.id,
+    label: `${owner.container.number} - ${owner.client.name}`,
   }));
 
   return (
     <>
-      <PageHead title="Создание заявки на смену владельца КТК">
+      <PageHead title="Создание заявки на услугу">
         <UikitBackButton onClick={props.onBack} />
       </PageHead>
 
@@ -2338,24 +2373,45 @@ function CreateOwnerChangeOrderPage(props: {
           <form className="uikit-form create-page-form" onSubmit={props.onSubmit}>
             <h2>Данные заявки</h2>
             <Select
-              label="Новый владелец"
+              label="Услуга"
               placeholder=" "
-              value={props.clientId ? Number(props.clientId) : undefined}
-              options={props.clients.map((client) => ({ value: client.id, label: client.name }))}
-              onChange={(value) => props.onClientChange(value ? String(value) : "")}
+              value={props.serviceId ? Number(props.serviceId) : undefined}
+              options={serviceOptions}
+              onChange={(value) => props.onServiceChange(value ? String(value) : "")}
             />
-            <label>
-              Комментарий
-              <textarea value={props.comment} onChange={(event) => props.onCommentChange(event.target.value)} rows={4} />
-            </label>
-            <SelectMulti
-              label="КТК"
-              placeholder=" "
-              value={props.selectedContainers}
-              options={containerOptions}
-              selectAllLabel="Выбрать все КТК"
-              onChange={(value) => props.onContainersChange(value.map(Number))}
-            />
+            {isOwnerChangeSelected && (
+              <>
+                <label>
+                  Дата услуги
+                  <input type="date" value={props.serviceDate} onChange={(event) => props.onServiceDateChange(event.target.value)} />
+                </label>
+                <Select
+                  label="Новый владелец"
+                  placeholder=" "
+                  value={props.clientId ? Number(props.clientId) : undefined}
+                  options={props.clients.map((client) => ({ value: client.id, label: client.name }))}
+                  onChange={(value) => props.onClientChange(value ? String(value) : "")}
+                />
+                <label>
+                  Комментарий
+                  <textarea value={props.comment} onChange={(event) => props.onCommentChange(event.target.value)} rows={4} />
+                </label>
+                <SelectMulti
+                  label="КТК"
+                  placeholder=" "
+                  value={props.selectedContainers}
+                  options={containerOptions}
+                  selectAllLabel="Выбрать все КТК"
+                  onChange={(value) => props.onContainersChange(value.map(Number))}
+                />
+              </>
+            )}
+            {!isOwnerChangeSelected && props.serviceId && (
+              <label>
+                Данные услуги
+                <input value="Форма для выбранной услуги пока не настроена" readOnly />
+              </label>
+            )}
             <div className="uikit-form-actions">
               <BaseButton buttonType={ButtonType.default} ButtonAction="submit">
                 Сохранить
@@ -2406,7 +2462,8 @@ function ReceivingOrderDetailsPage({
               <DetailItem label="Номер заявки" value={order.number} />
               <DetailItem label="Клиент" value={order.client.name} />
               <DetailItem label="Статус" value={receivingOrderStatusLabel(order.status)} />
-              <DetailItem label="Дата поставки" value={formatDate(order.receivingDate)} />
+              <DetailItem label="Плановая дата поставки" value={formatDate(order.plannedReceivingDate)} />
+              <DetailItem label="Фактическая дата поставки" value={order.actualReceivingDate ? formatDate(order.actualReceivingDate) : "-"} />
               <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
             </div>
 
@@ -2761,7 +2818,8 @@ function ShippingOrderDetailsPage({
               <DetailItem label="Номер заявки" value={order.number} />
               <DetailItem label="Клиент" value={order.client.name} />
               <DetailItem label="Статус" value={shippingOrderStatusLabel(order.status)} />
-              <DetailItem label="Дата вывоза" value={formatDate(order.shippingDate)} />
+              <DetailItem label="Плановая дата вывоза" value={formatDate(order.plannedShippingDate)} />
+              <DetailItem label="Фактическая дата вывоза" value={order.actualShippingDate ? formatDate(order.actualShippingDate) : "-"} />
               <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
               <DetailItem label="Дата выполнения" value={order.completedAt ? formatDateTime(order.completedAt) : "-"} />
             </div>
@@ -2790,7 +2848,7 @@ function OwnerChangeOrderDetailsPage({
 
   return (
     <>
-      <PageHead title={`Заявка на смену владельца КТК ${order.number}`}>
+      <PageHead title={`Заявка на услугу ${order.number}`}>
         <div className="head-actions">
           <BackButton onClick={onBack} />
           <button className="design-button" type="button" onClick={onCreate}>
@@ -2802,6 +2860,8 @@ function OwnerChangeOrderDetailsPage({
       <section className="details-panel">
         <div className="detail-grid">
           <DetailItem label="Номер заявки" value={order.number} />
+          <DetailItem label="Услуга" value={order.service.name} />
+          <DetailItem label="Дата услуги" value={formatDate(order.serviceDate)} />
           <DetailItem label="Новый владелец" value={order.newClient.name} />
           <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
           <DetailItem label="Комментарий" value={order.comment || "-"} />
@@ -3332,6 +3392,10 @@ function serviceTypeLabel(serviceType: BillingServiceType) {
     case "CONTINUOUS":
       return "Продолжительная";
   }
+}
+
+function isOwnerChangeService(service: BillingService) {
+  return service.name.trim().toLocaleLowerCase("ru-RU") === "смена владельца";
 }
 
 function complexServiceItemValue(item: ComplexServiceItem) {

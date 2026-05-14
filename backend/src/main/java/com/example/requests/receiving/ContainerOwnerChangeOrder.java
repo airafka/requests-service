@@ -15,6 +15,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,10 @@ public class ContainerOwnerChangeOrder {
     @JoinColumn(name = "new_client_id", nullable = false)
     private ClientEntity newClient;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "service_id", nullable = false)
+    private BillingService service;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private ContainerOwnerChangeOrderStatus status = ContainerOwnerChangeOrderStatus.DRAFT;
@@ -42,6 +47,9 @@ public class ContainerOwnerChangeOrder {
 
     @Column(nullable = false)
     private OffsetDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDate serviceDate;
 
     @Column(length = 180)
     private String createdBy;
@@ -58,6 +66,9 @@ public class ContainerOwnerChangeOrder {
     void onCreate() {
         if (createdAt == null) {
             createdAt = OffsetDateTime.now();
+        }
+        if (serviceDate == null) {
+            serviceDate = LocalDate.now();
         }
     }
 
@@ -81,6 +92,14 @@ public class ContainerOwnerChangeOrder {
         this.newClient = newClient;
     }
 
+    public BillingService getService() {
+        return service;
+    }
+
+    public void setService(BillingService service) {
+        this.service = service;
+    }
+
     public ContainerOwnerChangeOrderStatus getStatus() {
         return status;
     }
@@ -99,6 +118,14 @@ public class ContainerOwnerChangeOrder {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public LocalDate getServiceDate() {
+        return serviceDate;
+    }
+
+    public void setServiceDate(LocalDate serviceDate) {
+        this.serviceDate = serviceDate;
     }
 
     public String getCreatedBy() {

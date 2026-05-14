@@ -10,7 +10,7 @@ import java.util.List;
 
 public record CreateShippingOrderDto(
     @NotNull Long clientId,
-    @NotNull LocalDate shippingDate,
+    @NotNull LocalDate plannedShippingDate,
     @NotEmpty List<@NotBlank @Size(max = 32) String> containerNumbers
 ) {
 }

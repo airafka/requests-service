@@ -79,7 +79,7 @@ public class ShippingOrderController {
         ShippingOrder order = new ShippingOrder();
         order.setNumber(nextOrderNumber());
         order.setClient(client);
-        order.setShippingDate(dto.shippingDate());
+        order.setPlannedShippingDate(dto.plannedShippingDate());
         requestedContainers.forEach(order::addContainer);
 
         ShippingOrder saved = orderRepository.saveAndFlush(order);
@@ -88,7 +88,11 @@ public class ShippingOrderController {
 
     @PostMapping("/{orderId}/containers/{linkId}/finish")
     @Transactional
-    public ShippingOrderResponse finishContainer(@PathVariable Long orderId, @PathVariable Long linkId) {
+    public ShippingOrderResponse finishContainer(
+        @PathVariable Long orderId,
+        @PathVariable Long linkId,
+        @Valid @RequestBody FinishContainerDto dto
+    ) {
         ShippingOrder order = orderRepository.findWithContainersById(orderId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Shipping order was not found"));
 
@@ -99,7 +103,7 @@ public class ShippingOrderController {
 
         if (link.getStatus() != ShippingOrderContainerStatus.FINISHED) {
             link.setStatus(ShippingOrderContainerStatus.FINISHED);
-            link.setFinishedAt(startOfDay(order.getShippingDate()));
+            link.setFinishedAt(startOfDay(dto.actualDate()));
         }
 
         boolean allContainersFinished = order.getContainers().stream()
@@ -107,7 +111,8 @@ public class ShippingOrderController {
 
         if (allContainersFinished && order.getStatus() != ShippingOrderStatus.COMPLETED) {
             order.setStatus(ShippingOrderStatus.COMPLETED);
-            order.setCompletedAt(startOfDay(order.getShippingDate()));
+            order.setActualShippingDate(dto.actualDate());
+            order.setCompletedAt(startOfDay(dto.actualDate()));
             containerOwnerService.createShippingHistory(order);
         }
 

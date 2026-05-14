@@ -37,8 +37,10 @@ public class ShippingOrder {
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 
-    @Column(nullable = false)
-    private LocalDate shippingDate;
+    @Column(name = "shipping_date", nullable = false)
+    private LocalDate plannedShippingDate;
+
+    private LocalDate actualShippingDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -52,8 +54,8 @@ public class ShippingOrder {
     @PrePersist
     void onCreate() {
         createdAt = OffsetDateTime.now();
-        if (shippingDate == null) {
-            shippingDate = LocalDate.now();
+        if (plannedShippingDate == null) {
+            plannedShippingDate = LocalDate.now();
         }
     }
 
@@ -81,12 +83,20 @@ public class ShippingOrder {
         return createdAt;
     }
 
-    public LocalDate getShippingDate() {
-        return shippingDate;
+    public LocalDate getPlannedShippingDate() {
+        return plannedShippingDate;
     }
 
-    public void setShippingDate(LocalDate shippingDate) {
-        this.shippingDate = shippingDate;
+    public void setPlannedShippingDate(LocalDate plannedShippingDate) {
+        this.plannedShippingDate = plannedShippingDate;
+    }
+
+    public LocalDate getActualShippingDate() {
+        return actualShippingDate;
+    }
+
+    public void setActualShippingDate(LocalDate actualShippingDate) {
+        this.actualShippingDate = actualShippingDate;
     }
 
     public ShippingOrderStatus getStatus() {
