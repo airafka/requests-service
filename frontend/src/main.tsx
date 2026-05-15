@@ -298,6 +298,8 @@ type BillingPeriod = {
   name: string;
   dateFrom: string;
   dateTo: string;
+  clientId: number | null;
+  clientName: string | null;
   status: BillingPeriodStatus;
   createdAt: string;
   updatedAt: string;
@@ -317,10 +319,10 @@ type BillingAccrual = {
   billingPeriodName: string;
   clientId: number;
   clientName: string;
-  serviceId: number;
-  serviceName: string;
-  tariffId: number;
-  tariffName: string;
+  serviceId: number | null;
+  serviceName: string | null;
+  tariffId: number | null;
+  tariffName: string | null;
   quantity: number;
   unit: string;
   unitPrice: number;
@@ -394,6 +396,7 @@ function App() {
   const [newComplexServiceCoefficient, setNewComplexServiceCoefficient] = React.useState("1");
   const [newComplexServiceItems, setNewComplexServiceItems] = React.useState<ComplexServiceFormItem[]>([]);
   const [newBillingPeriodName, setNewBillingPeriodName] = React.useState("");
+  const [newBillingPeriodClientId, setNewBillingPeriodClientId] = React.useState("");
   const [newBillingPeriodDateFrom, setNewBillingPeriodDateFrom] = React.useState(todayLocalDate());
   const [newBillingPeriodDateTo, setNewBillingPeriodDateTo] = React.useState(todayLocalDate());
   const [isReceivingDropdownOpen, setIsReceivingDropdownOpen] = React.useState(false);
@@ -697,11 +700,17 @@ function App() {
     event.preventDefault();
     setError(null);
 
+    if (!newBillingPeriodClientId) {
+      setError("Выберите клиента для расчета");
+      return;
+    }
+
     const response = await fetch(`${API_BASE}/billing-periods`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: newBillingPeriodName || null,
+        clientId: Number(newBillingPeriodClientId),
         dateFrom: newBillingPeriodDateFrom,
         dateTo: newBillingPeriodDateTo,
       }),
@@ -714,6 +723,7 @@ function App() {
 
     const createdPeriod: BillingPeriod = await response.json();
     setNewBillingPeriodName("");
+    setNewBillingPeriodClientId("");
     setNewBillingPeriodDateFrom(todayLocalDate());
     setNewBillingPeriodDateTo(todayLocalDate());
     await loadData();
@@ -1647,12 +1657,15 @@ function App() {
 
         {page === "billing-period-create" && (
           <CreateBillingPeriodPage
+            clients={clients}
             name={newBillingPeriodName}
+            clientId={newBillingPeriodClientId}
             dateFrom={newBillingPeriodDateFrom}
             dateTo={newBillingPeriodDateTo}
             onBack={() => setPage("billing-periods")}
             onSubmit={createBillingPeriod}
             onNameChange={setNewBillingPeriodName}
+            onClientChange={setNewBillingPeriodClientId}
             onDateFromChange={setNewBillingPeriodDateFrom}
             onDateToChange={setNewBillingPeriodDateTo}
           />
@@ -3336,10 +3349,11 @@ function BillingPeriodsPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Название периода", "Дата с", "Дата по", "Статус", "Действие"]}>
+          <OrdersTable columns={["Название периода", "Клиент", "Дата с", "Дата по", "Статус", "Действие"]}>
             {periods.map((period) => (
               <tr key={period.id}>
                 <td>{period.name}</td>
+                <td>{period.clientName ?? "-"}</td>
                 <td>{formatDate(period.dateFrom)}</td>
                 <td>{formatDate(period.dateTo)}</td>
                 <td>{billingPeriodStatusLabel(period.status)}</td>
@@ -3362,7 +3376,7 @@ function BillingPeriodsPage({
                 </td>
               </tr>
             ))}
-            {periods.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Расчетных периодов пока нет"} />}
+            {periods.length === 0 && <EmptyRow colSpan={6} text={isLoading ? "Загрузка..." : "Расчетных периодов пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -3371,21 +3385,27 @@ function BillingPeriodsPage({
 }
 
 function CreateBillingPeriodPage({
+  clients,
   name,
+  clientId,
   dateFrom,
   dateTo,
   onBack,
   onSubmit,
   onNameChange,
+  onClientChange,
   onDateFromChange,
   onDateToChange,
 }: {
+  clients: Client[];
   name: string;
+  clientId: string;
   dateFrom: string;
   dateTo: string;
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onNameChange: (value: string) => void;
+  onClientChange: (value: string) => void;
   onDateFromChange: (value: string) => void;
   onDateToChange: (value: string) => void;
 }) {
@@ -3399,6 +3419,13 @@ function CreateBillingPeriodPage({
             Название
             <input value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="Май 2026" />
           </label>
+          <Select
+            label="Клиент"
+            placeholder=" "
+            value={clientId ? Number(clientId) : undefined}
+            options={clients.map((client) => ({ value: client.id, label: client.name }))}
+            onChange={(value) => onClientChange(value ? String(value) : "")}
+          />
           <label>
             Дата с
             <input type="date" value={dateFrom} onChange={(event) => onDateFromChange(event.target.value)} required />
@@ -3432,26 +3459,23 @@ function BillingPeriodDetailsPage({
       <BackButton onClick={onBack} />
       <h1>{period.name}</h1>
       <div className="details-grid">
+        <DetailItem label="Клиент" value={period.clientName ?? "-"} />
         <DetailItem label="Дата с" value={formatDate(period.dateFrom)} />
         <DetailItem label="Дата по" value={formatDate(period.dateTo)} />
         <DetailItem label="Статус" value={billingPeriodStatusLabel(period.status)} />
       </div>
 
       <h2>Начисления</h2>
-      <OrdersTable columns={["Клиент", "Услуга", "Количество", "Ед.", "Тариф", "Цена", "Сумма", "Статус"]}>
+      <OrdersTable columns={["Клиент", "Количество услуг", "Сумма", "Статус"]}>
         {(period.accruals ?? []).map((accrual) => (
           <tr className="clickable-row" key={accrual.id} onClick={() => onOpenAccrual(accrual)}>
             <td>{accrual.clientName}</td>
-            <td>{accrual.serviceName}</td>
             <td>{formatQuantity(accrual.quantity)}</td>
-            <td>{accrual.unit}</td>
-            <td>{accrual.tariffName || `#${accrual.tariffId}`}</td>
-            <td>{formatMoney(accrual.unitPrice)}</td>
             <td>{formatMoney(accrual.amount)}</td>
             <td>{billingAccrualStatusLabel(accrual.status)}</td>
           </tr>
         ))}
-        {(period.accruals ?? []).length === 0 && <EmptyRow colSpan={8} text="Начислений по периоду пока нет" />}
+        {(period.accruals ?? []).length === 0 && <EmptyRow colSpan={4} text="Начислений по периоду пока нет" />}
       </OrdersTable>
     </section>
   );
@@ -3472,21 +3496,17 @@ function BillingAccrualsPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Период", "Клиент", "Услуга", "Количество", "Единица", "Тариф", "Цена за единицу", "Сумма", "Статус"]}>
+          <OrdersTable columns={["Период", "Клиент", "Количество услуг", "Сумма", "Статус"]}>
             {accruals.map((accrual) => (
               <tr className="clickable-row" key={accrual.id} onClick={() => onOpen(accrual)}>
                 <td>{accrual.billingPeriodName}</td>
                 <td>{accrual.clientName}</td>
-                <td>{accrual.serviceName}</td>
                 <td>{formatQuantity(accrual.quantity)}</td>
-                <td>{accrual.unit}</td>
-                <td>{accrual.tariffName || `#${accrual.tariffId}`}</td>
-                <td>{formatMoney(accrual.unitPrice)}</td>
                 <td>{formatMoney(accrual.amount)}</td>
                 <td>{billingAccrualStatusLabel(accrual.status)}</td>
               </tr>
             ))}
-            {accruals.length === 0 && <EmptyRow colSpan={9} text={isLoading ? "Загрузка..." : "Начислений пока нет"} />}
+            {accruals.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Начислений пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -3512,28 +3532,25 @@ function BillingAccrualDetailsPage({
       <div className="details-grid">
         <DetailItem label="Период" value={accrual.billingPeriodName} />
         <DetailItem label="Клиент" value={accrual.clientName} />
-        <DetailItem label="Услуга" value={accrual.serviceName} />
-        <DetailItem label="Тариф" value={accrual.tariffName || `#${accrual.tariffId}`} />
-        <DetailItem label="Количество" value={formatQuantity(accrual.quantity)} />
-        <DetailItem label="Единица" value={accrual.unit} />
-        <DetailItem label="Цена за единицу" value={formatMoney(accrual.unitPrice)} />
+        <DetailItem label="Количество услуг" value={formatQuantity(accrual.quantity)} />
         <DetailItem label="Сумма" value={formatMoney(accrual.amount)} />
         <DetailItem label="Статус" value={billingAccrualStatusLabel(accrual.status)} />
       </div>
 
-      <h2>Оказанные услуги в начислении</h2>
-      <OrdersTable columns={["Дата", "КТК", "Услуга", "Количество", "Источник", "Статус"]}>
+      <h2>Операции в начислении</h2>
+      <OrdersTable columns={["Дата", "КТК", "Услуга", "Количество", "Ед.", "Источник", "Статус"]}>
         {(accrual.sources ?? []).map((source) => (
           <tr key={source.id}>
             <td>{serviceExecutionPeriodLabel(source.serviceExecution)}</td>
             <td>{source.serviceExecution.containerNumber}</td>
             <td>{source.serviceExecution.serviceName}</td>
             <td>{source.serviceExecution.quantity}</td>
+            <td>{source.serviceExecution.unit}</td>
             <td>{source.serviceExecution.sourceType}</td>
             <td>{serviceExecutionStatusLabel(source.serviceExecution.status)}</td>
           </tr>
         ))}
-        {(accrual.sources ?? []).length === 0 && <EmptyRow colSpan={6} text="Оказанные услуги не загружены" />}
+        {(accrual.sources ?? []).length === 0 && <EmptyRow colSpan={7} text="Оказанные услуги не загружены" />}
       </OrdersTable>
     </section>
   );

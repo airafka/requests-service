@@ -19,13 +19,16 @@ import java.util.List;
 public class BillingPeriodController {
     private final BillingPeriodRepository periodRepository;
     private final BillingAccrualService accrualService;
+    private final ClientRepository clientRepository;
 
     public BillingPeriodController(
         BillingPeriodRepository periodRepository,
-        BillingAccrualService accrualService
+        BillingAccrualService accrualService,
+        ClientRepository clientRepository
     ) {
         this.periodRepository = periodRepository;
         this.accrualService = accrualService;
+        this.clientRepository = clientRepository;
     }
 
     @GetMapping
@@ -55,7 +58,15 @@ public class BillingPeriodController {
         if (dto.dateFrom().isAfter(dto.dateTo())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Period start date must be before end date");
         }
-        if (periodRepository.existsByDateFromAndDateToAndStatusNot(dto.dateFrom(), dto.dateTo(), BillingPeriodStatus.CANCELLED)) {
+        ClientEntity client = clientRepository.findById(dto.clientId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown client"));
+
+        if (periodRepository.existsByClientIdAndDateFromAndDateToAndStatusNot(
+            client.getId(),
+            dto.dateFrom(),
+            dto.dateTo(),
+            BillingPeriodStatus.CANCELLED
+        )) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Billing period already exists");
         }
 
@@ -65,6 +76,7 @@ public class BillingPeriodController {
             : dto.name().trim());
         period.setDateFrom(dto.dateFrom());
         period.setDateTo(dto.dateTo());
+        period.setClient(client);
         period.setStatus(BillingPeriodStatus.DRAFT);
         return BillingPeriodResponse.fromEntity(periodRepository.save(period));
     }
@@ -89,4 +101,3 @@ public class BillingPeriodController {
         return BillingPeriodResponse.fromEntity(periodRepository.save(period));
     }
 }
-

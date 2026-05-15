@@ -36,12 +36,12 @@ public class BillingAccrual {
     @JoinColumn(name = "client_id", nullable = false)
     private ClientEntity client;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "service_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_id")
     private BillingService service;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "tariff_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tariff_id")
     private Tariff tariff;
 
     @Column(nullable = false, precision = 14, scale = 3)

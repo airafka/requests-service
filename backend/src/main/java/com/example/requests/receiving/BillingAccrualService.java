@@ -11,7 +11,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class BillingAccrualService {
@@ -60,6 +61,9 @@ public class BillingAccrualService {
         if (period.getStatus() == BillingPeriodStatus.CALCULATED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Период уже рассчитан");
         }
+        if (period.getClient() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Billing period client was not selected");
+        }
 
         List<ServiceExecution> executions = serviceExecutionRepository
             .findByStatusAndDateFromBetweenOrderByDateFromAscIdAsc(
@@ -68,6 +72,7 @@ public class BillingAccrualService {
                 period.getDateTo()
             )
             .stream()
+            .filter(execution -> execution.getClient().getId().equals(period.getClient().getId()))
             .filter(execution -> !sourceRepository.existsByBillingPeriodIdAndServiceExecutionId(period.getId(), execution.getId()))
             .toList();
 
@@ -101,51 +106,45 @@ public class BillingAccrualService {
             );
         }
 
-        Map<AccrualGroupKey, List<BillableExecution>> groups = new LinkedHashMap<>();
+        if (billableExecutions.isEmpty()) {
+            period.setStatus(BillingPeriodStatus.CALCULATED);
+            return periodRepository.save(period);
+        }
+
+        Map<Long, BillableExecution> uniqueExecutions = billableExecutions.stream()
+            .collect(Collectors.toMap(
+                billableExecution -> billableExecution.execution().getId(),
+                Function.identity(),
+                (left, ignored) -> left,
+                LinkedHashMap::new
+            ));
+
+        BigDecimal amount = BigDecimal.ZERO;
         for (BillableExecution billableExecution : billableExecutions) {
             Tariff tariff = tariffsByServiceId.get(billableExecution.service().getId());
             BigDecimal unitPrice = tariff.getCost()
                 .multiply(billableExecution.coefficient())
                 .setScale(2, RoundingMode.HALF_UP);
-            AccrualGroupKey key = new AccrualGroupKey(
-                billableExecution.execution().getClient().getId(),
-                billableExecution.service().getId(),
-                tariff.getId(),
-                billableExecution.execution().getUnit(),
-                unitPrice
-            );
-            groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(billableExecution);
+            BigDecimal quantity = BigDecimal.valueOf(billableExecution.execution().getQuantity());
+            amount = amount.add(quantity.multiply(unitPrice));
         }
 
-        for (List<BillableExecution> groupExecutions : groups.values()) {
-            BillableExecution first = groupExecutions.get(0);
-            Tariff tariff = tariffsByServiceId.get(first.service().getId());
-            BigDecimal quantity = groupExecutions.stream()
-                .map(billableExecution -> BigDecimal.valueOf(billableExecution.execution().getQuantity()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal unitPrice = tariff.getCost()
-                .multiply(first.coefficient())
-                .setScale(2, RoundingMode.HALF_UP);
+        BillingAccrual accrual = new BillingAccrual();
+        accrual.setBillingPeriod(period);
+        accrual.setClient(period.getClient());
+        accrual.setQuantity(BigDecimal.valueOf(uniqueExecutions.size()));
+        accrual.setUnit("услуг");
+        accrual.setUnitPrice(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        accrual.setAmount(amount.setScale(2, RoundingMode.HALF_UP));
+        accrual.setStatus(BillingAccrualStatus.CALCULATED);
+        BillingAccrual saved = accrualRepository.saveAndFlush(accrual);
 
-            BillingAccrual accrual = new BillingAccrual();
-            accrual.setBillingPeriod(period);
-            accrual.setClient(first.execution().getClient());
-            accrual.setService(first.service());
-            accrual.setTariff(tariff);
-            accrual.setQuantity(quantity);
-            accrual.setUnit(first.execution().getUnit());
-            accrual.setUnitPrice(unitPrice);
-            accrual.setAmount(quantity.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP));
-            accrual.setStatus(BillingAccrualStatus.CALCULATED);
-            BillingAccrual saved = accrualRepository.saveAndFlush(accrual);
-
-            for (BillableExecution billableExecution : groupExecutions) {
-                BillingAccrualSource source = new BillingAccrualSource();
-                source.setBillingAccrual(saved);
-                source.setBillingPeriod(period);
-                source.setServiceExecution(billableExecution.execution());
-                sourceRepository.save(source);
-            }
+        for (BillableExecution billableExecution : uniqueExecutions.values()) {
+            BillingAccrualSource source = new BillingAccrualSource();
+            source.setBillingAccrual(saved);
+            source.setBillingPeriod(period);
+            source.setServiceExecution(billableExecution.execution());
+            sourceRepository.save(source);
         }
 
         period.setStatus(BillingPeriodStatus.CALCULATED);
@@ -195,22 +194,6 @@ public class BillingAccrualService {
 
     private boolean isService(BillingService service, String name) {
         return service.getName().trim().equalsIgnoreCase(name);
-    }
-
-    private record AccrualGroupKey(
-        Long clientId,
-        Long serviceId,
-        Long tariffId,
-        String unit,
-        BigDecimal unitPrice
-    ) {
-        private AccrualGroupKey {
-            Objects.requireNonNull(clientId);
-            Objects.requireNonNull(serviceId);
-            Objects.requireNonNull(tariffId);
-            Objects.requireNonNull(unit);
-            Objects.requireNonNull(unitPrice);
-        }
     }
 
     private record BillableExecution(

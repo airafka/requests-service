@@ -10,9 +10,16 @@ import java.util.Optional;
 public interface BillingPeriodRepository extends JpaRepository<BillingPeriod, Long> {
     boolean existsByDateFromAndDateToAndStatusNot(LocalDate dateFrom, LocalDate dateTo, BillingPeriodStatus status);
 
+    boolean existsByClientIdAndDateFromAndDateToAndStatusNot(
+        Long clientId,
+        LocalDate dateFrom,
+        LocalDate dateTo,
+        BillingPeriodStatus status
+    );
+
+    @EntityGraph(attributePaths = {"client"})
     List<BillingPeriod> findAllByOrderByDateFromDescIdDesc();
 
-    @EntityGraph(attributePaths = {"accruals", "accruals.client", "accruals.service", "accruals.tariff"})
+    @EntityGraph(attributePaths = {"client", "accruals", "accruals.client", "accruals.service", "accruals.tariff"})
     Optional<BillingPeriod> findWithAccrualsById(Long id);
 }
-
