@@ -15,24 +15,40 @@ import java.util.Objects;
 
 @Service
 public class BillingAccrualService {
+    private static final String OWNER_CHANGE_SERVICE_NAME = "\u0421\u043c\u0435\u043d\u0430 \u0432\u043b\u0430\u0434\u0435\u043b\u044c\u0446\u0430";
+    private static final String STORAGE_FACT_SERVICE_NAME = "\u0425\u0440\u0430\u043d\u0435\u043d\u0438\u0435 \u041a\u0422\u041a";
+    private static final String ACCOUNTING_AND_STORAGE_SERVICE_NAME = "\u0423\u0447\u0435\u0442 \u0438 \u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f";
+
     private final BillingPeriodRepository periodRepository;
     private final BillingAccrualRepository accrualRepository;
     private final BillingAccrualSourceRepository sourceRepository;
     private final ServiceExecutionRepository serviceExecutionRepository;
     private final TariffRepository tariffRepository;
+    private final BillingServiceRepository billingServiceRepository;
+    private final ContainerStorageDailyAccrualRepository storageAccrualRepository;
+    private final ReceivingOrderContainerRepository receivingOrderContainerRepository;
+    private final TosOperationFactRepository tosOperationFactRepository;
 
     public BillingAccrualService(
         BillingPeriodRepository periodRepository,
         BillingAccrualRepository accrualRepository,
         BillingAccrualSourceRepository sourceRepository,
         ServiceExecutionRepository serviceExecutionRepository,
-        TariffRepository tariffRepository
+        TariffRepository tariffRepository,
+        BillingServiceRepository billingServiceRepository,
+        ContainerStorageDailyAccrualRepository storageAccrualRepository,
+        ReceivingOrderContainerRepository receivingOrderContainerRepository,
+        TosOperationFactRepository tosOperationFactRepository
     ) {
         this.periodRepository = periodRepository;
         this.accrualRepository = accrualRepository;
         this.sourceRepository = sourceRepository;
         this.serviceExecutionRepository = serviceExecutionRepository;
         this.tariffRepository = tariffRepository;
+        this.billingServiceRepository = billingServiceRepository;
+        this.storageAccrualRepository = storageAccrualRepository;
+        this.receivingOrderContainerRepository = receivingOrderContainerRepository;
+        this.tosOperationFactRepository = tosOperationFactRepository;
     }
 
     @Transactional
@@ -60,19 +76,24 @@ public class BillingAccrualService {
             .filter(execution -> !sourceRepository.existsByBillingPeriodIdAndServiceExecutionId(period.getId(), execution.getId()))
             .toList();
 
+        List<BillableExecution> billableExecutions = executions.stream()
+            .map(this::resolveBillableExecution)
+            .flatMap(List::stream)
+            .toList();
+
         Map<Long, Tariff> tariffsByServiceId = new LinkedHashMap<>();
         List<String> missingTariffs = new ArrayList<>();
 
-        for (ServiceExecution execution : executions) {
-            Long serviceId = execution.getService().getId();
+        for (BillableExecution billableExecution : billableExecutions) {
+            Long serviceId = billableExecution.service().getId();
             if (tariffsByServiceId.containsKey(serviceId)) {
                 continue;
             }
 
-            // TODO: На следующем этапе добавить полноценные правила выбора тарифа, коэффициенты и прогрессивные ставки.
+            // TODO: Add full tariff selection rules, coefficients, and progressive rates at the next stage.
             List<Tariff> tariffs = tariffRepository.findByServices_IdOrderByIdAsc(serviceId);
             if (tariffs.isEmpty()) {
-                missingTariffs.add("service_execution #" + execution.getId() + ", service #" + serviceId);
+                missingTariffs.add("service_execution #" + billableExecution.execution().getId() + ", service #" + serviceId);
                 continue;
             }
             tariffsByServiceId.put(serviceId, tariffs.get(0));
@@ -81,47 +102,53 @@ public class BillingAccrualService {
         if (!missingTariffs.isEmpty()) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "Для части оказанных услуг не найден тариф: " + String.join("; ", missingTariffs)
+                "Tariff was not found for some service executions: " + String.join("; ", missingTariffs)
             );
         }
 
-        Map<AccrualGroupKey, List<ServiceExecution>> groups = new LinkedHashMap<>();
-        for (ServiceExecution execution : executions) {
-            Tariff tariff = tariffsByServiceId.get(execution.getService().getId());
+        Map<AccrualGroupKey, List<BillableExecution>> groups = new LinkedHashMap<>();
+        for (BillableExecution billableExecution : billableExecutions) {
+            Tariff tariff = tariffsByServiceId.get(billableExecution.service().getId());
+            BigDecimal unitPrice = tariff.getCost()
+                .multiply(billableExecution.coefficient())
+                .setScale(2, RoundingMode.HALF_UP);
             AccrualGroupKey key = new AccrualGroupKey(
-                execution.getClient().getId(),
-                execution.getService().getId(),
+                billableExecution.execution().getClient().getId(),
+                billableExecution.service().getId(),
                 tariff.getId(),
-                execution.getUnit()
+                billableExecution.execution().getUnit(),
+                unitPrice
             );
-            groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(execution);
+            groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(billableExecution);
         }
 
-        for (List<ServiceExecution> groupExecutions : groups.values()) {
-            ServiceExecution first = groupExecutions.get(0);
-            Tariff tariff = tariffsByServiceId.get(first.getService().getId());
+        for (List<BillableExecution> groupExecutions : groups.values()) {
+            BillableExecution first = groupExecutions.get(0);
+            Tariff tariff = tariffsByServiceId.get(first.service().getId());
             BigDecimal quantity = groupExecutions.stream()
-                .map(execution -> BigDecimal.valueOf(execution.getQuantity()))
+                .map(billableExecution -> BigDecimal.valueOf(billableExecution.execution().getQuantity()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal unitPrice = tariff.getCost().setScale(2, RoundingMode.HALF_UP);
+            BigDecimal unitPrice = tariff.getCost()
+                .multiply(first.coefficient())
+                .setScale(2, RoundingMode.HALF_UP);
 
             BillingAccrual accrual = new BillingAccrual();
             accrual.setBillingPeriod(period);
-            accrual.setClient(first.getClient());
-            accrual.setService(first.getService());
+            accrual.setClient(first.execution().getClient());
+            accrual.setService(first.service());
             accrual.setTariff(tariff);
             accrual.setQuantity(quantity);
-            accrual.setUnit(first.getUnit());
+            accrual.setUnit(first.execution().getUnit());
             accrual.setUnitPrice(unitPrice);
             accrual.setAmount(quantity.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP));
             accrual.setStatus(BillingAccrualStatus.CALCULATED);
             BillingAccrual saved = accrualRepository.saveAndFlush(accrual);
 
-            for (ServiceExecution execution : groupExecutions) {
+            for (BillableExecution billableExecution : groupExecutions) {
                 BillingAccrualSource source = new BillingAccrualSource();
                 source.setBillingAccrual(saved);
                 source.setBillingPeriod(period);
-                source.setServiceExecution(execution);
+                source.setServiceExecution(billableExecution.execution());
                 sourceRepository.save(source);
             }
         }
@@ -130,17 +157,79 @@ public class BillingAccrualService {
         return periodRepository.save(period);
     }
 
+    private List<BillableExecution> resolveBillableExecution(ServiceExecution execution) {
+        if (isService(execution.getService(), OWNER_CHANGE_SERVICE_NAME)) {
+            return List.of();
+        }
+
+        if (isService(execution.getService(), STORAGE_FACT_SERVICE_NAME)) {
+            BillingService accountingService = accountingAndStorageService();
+            BigDecimal coefficient = storageCoefficient(execution);
+            return List.of(new BillableExecution(execution, accountingService, coefficient));
+        }
+
+        return List.of(new BillableExecution(execution, execution.getService(), tosCoefficient(execution)));
+    }
+
+    private BigDecimal storageCoefficient(ServiceExecution execution) {
+        if (execution.getBasisType() != ServiceExecutionBasisType.STORAGE_DAILY_ACCRUAL || execution.getBasisId() == null) {
+            return BigDecimal.ONE;
+        }
+
+        return storageAccrualRepository.findWithStoragePeriodById(execution.getBasisId())
+            .map(ContainerStorageDailyAccrual::getStoragePeriod)
+            .filter(period -> period.getSourceType() == ContainerStorageSourceType.RECEIVING_ORDER)
+            .map(ContainerStoragePeriod::getSourceId)
+            .flatMap(receivingOrderContainerRepository::findWithReceivingOrderById)
+            .map(ReceivingOrderContainer::getReceivingOrder)
+            .map(ReceivingOrder::getComplexService)
+            .map(ComplexService::getCoefficient)
+            .orElse(BigDecimal.ONE);
+    }
+
+    private BigDecimal tosCoefficient(ServiceExecution execution) {
+        if (execution.getBasisType() != ServiceExecutionBasisType.TOS_OPERATION_FACT || execution.getBasisId() == null) {
+            return BigDecimal.ONE;
+        }
+
+        return tosOperationFactRepository.findWithContextById(execution.getBasisId())
+            .map(TosOperationFact::getReceivingOrder)
+            .map(ReceivingOrder::getComplexService)
+            .filter(complexService -> complexService.getItems().stream()
+                .anyMatch(item -> item.getService().getId().equals(execution.getService().getId())))
+            .map(ComplexService::getCoefficient)
+            .orElse(BigDecimal.ONE);
+    }
+
+    private BillingService accountingAndStorageService() {
+        return billingServiceRepository.findByNameIgnoreCase(ACCOUNTING_AND_STORAGE_SERVICE_NAME)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Service was not found: " + ACCOUNTING_AND_STORAGE_SERVICE_NAME));
+    }
+
+    private boolean isService(BillingService service, String name) {
+        return service.getName().trim().equalsIgnoreCase(name);
+    }
+
     private record AccrualGroupKey(
         Long clientId,
         Long serviceId,
         Long tariffId,
-        String unit
+        String unit,
+        BigDecimal unitPrice
     ) {
         private AccrualGroupKey {
             Objects.requireNonNull(clientId);
             Objects.requireNonNull(serviceId);
             Objects.requireNonNull(tariffId);
             Objects.requireNonNull(unit);
+            Objects.requireNonNull(unitPrice);
         }
+    }
+
+    private record BillableExecution(
+        ServiceExecution execution,
+        BillingService service,
+        BigDecimal coefficient
+    ) {
     }
 }

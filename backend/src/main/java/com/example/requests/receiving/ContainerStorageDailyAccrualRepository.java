@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface ContainerStorageDailyAccrualRepository extends JpaRepository<ContainerStorageDailyAccrual, Long> {
     boolean existsByStoragePeriodIdAndAccrualDate(Long storagePeriodId, LocalDate accrualDate);
@@ -14,6 +15,9 @@ public interface ContainerStorageDailyAccrualRepository extends JpaRepository<Co
 
     @EntityGraph(attributePaths = {"storagePeriod", "container", "client", "service"})
     List<ContainerStorageDailyAccrual> findByStatusOrderByAccrualDateAscIdAsc(ContainerStorageDailyAccrualStatus status);
+
+    @EntityGraph(attributePaths = {"storagePeriod", "storagePeriod.ownerHistory", "container", "client", "service"})
+    Optional<ContainerStorageDailyAccrual> findWithStoragePeriodById(Long id);
 
     @EntityGraph(attributePaths = {"storagePeriod"})
     List<ContainerStorageDailyAccrual> findByStatusAndAccrualDateAfterOrderByAccrualDateDescIdDesc(

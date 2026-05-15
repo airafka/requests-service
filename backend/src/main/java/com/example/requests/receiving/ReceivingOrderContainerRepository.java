@@ -6,6 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface ReceivingOrderContainerRepository extends JpaRepository<ReceivingOrderContainer, Long> {
-    @EntityGraph(attributePaths = {"receivingOrder"})
+    @EntityGraph(attributePaths = {"receivingOrder", "receivingOrder.complexService", "receivingOrder.complexService.items", "receivingOrder.complexService.items.service"})
     Optional<ReceivingOrderContainer> findWithReceivingOrderById(Long id);
 }
