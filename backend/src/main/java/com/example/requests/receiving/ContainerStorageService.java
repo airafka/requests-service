@@ -10,7 +10,7 @@ import java.util.List;
 
 @Service
 public class ContainerStorageService {
-    private static final String STORAGE_SERVICE_NAME = "\u0425\u0440\u0430\u043d\u0435\u043d\u0438\u0435 \u041a\u0422\u041a";
+    private static final String STORAGE_SERVICE_NAME = "\u0423\u0447\u0435\u0442 \u0438 \u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f";
 
     private final ContainerStoragePeriodRepository periodRepository;
     private final ContainerStorageDailyAccrualRepository accrualRepository;

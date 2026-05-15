@@ -34,10 +34,6 @@ public class ContainerOwnerChangeOrder {
     @JoinColumn(name = "new_client_id", nullable = false)
     private ClientEntity newClient;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "service_id", nullable = false)
-    private BillingService service;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private ContainerOwnerChangeOrderStatus status = ContainerOwnerChangeOrderStatus.DRAFT;
@@ -90,14 +86,6 @@ public class ContainerOwnerChangeOrder {
 
     public void setNewClient(ClientEntity newClient) {
         this.newClient = newClient;
-    }
-
-    public BillingService getService() {
-        return service;
-    }
-
-    public void setService(BillingService service) {
-        this.service = service;
     }
 
     public ContainerOwnerChangeOrderStatus getStatus() {

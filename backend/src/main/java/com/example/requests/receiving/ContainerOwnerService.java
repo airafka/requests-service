@@ -10,7 +10,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -22,7 +21,6 @@ public class ContainerOwnerService {
     private final ContainerOwnerChangeOrderRepository changeOrderRepository;
     private final ContainerRepository containerRepository;
     private final ClientRepository clientRepository;
-    private final BillingServiceRepository billingServiceRepository;
     private final ReceivingOrderContainerRepository receivingOrderContainerRepository;
     private final ShippingOrderContainerRepository shippingOrderContainerRepository;
     private final ContainerStorageService storageService;
@@ -32,7 +30,6 @@ public class ContainerOwnerService {
         ContainerOwnerChangeOrderRepository changeOrderRepository,
         ContainerRepository containerRepository,
         ClientRepository clientRepository,
-        BillingServiceRepository billingServiceRepository,
         ReceivingOrderContainerRepository receivingOrderContainerRepository,
         ShippingOrderContainerRepository shippingOrderContainerRepository,
         ContainerStorageService storageService
@@ -41,7 +38,6 @@ public class ContainerOwnerService {
         this.changeOrderRepository = changeOrderRepository;
         this.containerRepository = containerRepository;
         this.clientRepository = clientRepository;
-        this.billingServiceRepository = billingServiceRepository;
         this.receivingOrderContainerRepository = receivingOrderContainerRepository;
         this.shippingOrderContainerRepository = shippingOrderContainerRepository;
         this.storageService = storageService;
@@ -115,12 +111,6 @@ public class ContainerOwnerService {
     public ContainerOwnerChangeOrder createChangeOrder(CreateContainerOwnerChangeOrderDto dto) {
         validateOwnerChangeDate(dto.serviceDate());
 
-        BillingService service = billingServiceRepository.findWithOperationsById(dto.serviceId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown service"));
-        if (!isOwnerChangeService(service)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only owner change service is supported for this request");
-        }
-
         ClientEntity newClient = clientRepository.findById(dto.newClientId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown client"));
 
@@ -164,7 +154,6 @@ public class ContainerOwnerService {
 
         ContainerOwnerChangeOrder order = new ContainerOwnerChangeOrder();
         order.setNumber(nextChangeOrderNumber());
-        order.setService(service);
         order.setServiceDate(dto.serviceDate());
         order.setNewClient(newClient);
         order.setStatus(ContainerOwnerChangeOrderStatus.COMPLETED);
@@ -435,8 +424,4 @@ public class ContainerOwnerService {
         return date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
     }
 
-    private boolean isOwnerChangeService(BillingService service) {
-        return "\u0441\u043c\u0435\u043d\u0430 \u0432\u043b\u0430\u0434\u0435\u043b\u044c\u0446\u0430"
-            .equals(service.getName().trim().toLowerCase(Locale.ROOT));
-    }
 }

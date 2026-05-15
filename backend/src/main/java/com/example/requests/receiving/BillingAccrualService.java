@@ -16,15 +16,12 @@ import java.util.Objects;
 @Service
 public class BillingAccrualService {
     private static final String OWNER_CHANGE_SERVICE_NAME = "\u0421\u043c\u0435\u043d\u0430 \u0432\u043b\u0430\u0434\u0435\u043b\u044c\u0446\u0430";
-    private static final String STORAGE_FACT_SERVICE_NAME = "\u0425\u0440\u0430\u043d\u0435\u043d\u0438\u0435 \u041a\u0422\u041a";
-    private static final String ACCOUNTING_AND_STORAGE_SERVICE_NAME = "\u0423\u0447\u0435\u0442 \u0438 \u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f";
 
     private final BillingPeriodRepository periodRepository;
     private final BillingAccrualRepository accrualRepository;
     private final BillingAccrualSourceRepository sourceRepository;
     private final ServiceExecutionRepository serviceExecutionRepository;
     private final TariffRepository tariffRepository;
-    private final BillingServiceRepository billingServiceRepository;
     private final ContainerStorageDailyAccrualRepository storageAccrualRepository;
     private final ReceivingOrderContainerRepository receivingOrderContainerRepository;
     private final TosOperationFactRepository tosOperationFactRepository;
@@ -35,7 +32,6 @@ public class BillingAccrualService {
         BillingAccrualSourceRepository sourceRepository,
         ServiceExecutionRepository serviceExecutionRepository,
         TariffRepository tariffRepository,
-        BillingServiceRepository billingServiceRepository,
         ContainerStorageDailyAccrualRepository storageAccrualRepository,
         ReceivingOrderContainerRepository receivingOrderContainerRepository,
         TosOperationFactRepository tosOperationFactRepository
@@ -45,7 +41,6 @@ public class BillingAccrualService {
         this.sourceRepository = sourceRepository;
         this.serviceExecutionRepository = serviceExecutionRepository;
         this.tariffRepository = tariffRepository;
-        this.billingServiceRepository = billingServiceRepository;
         this.storageAccrualRepository = storageAccrualRepository;
         this.receivingOrderContainerRepository = receivingOrderContainerRepository;
         this.tosOperationFactRepository = tosOperationFactRepository;
@@ -162,13 +157,10 @@ public class BillingAccrualService {
             return List.of();
         }
 
-        if (isService(execution.getService(), STORAGE_FACT_SERVICE_NAME)) {
-            BillingService accountingService = accountingAndStorageService();
-            BigDecimal coefficient = storageCoefficient(execution);
-            return List.of(new BillableExecution(execution, accountingService, coefficient));
-        }
-
-        return List.of(new BillableExecution(execution, execution.getService(), tosCoefficient(execution)));
+        BigDecimal coefficient = execution.getBasisType() == ServiceExecutionBasisType.STORAGE_DAILY_ACCRUAL
+            ? storageCoefficient(execution)
+            : tosCoefficient(execution);
+        return List.of(new BillableExecution(execution, execution.getService(), coefficient));
     }
 
     private BigDecimal storageCoefficient(ServiceExecution execution) {
@@ -199,11 +191,6 @@ public class BillingAccrualService {
                 .anyMatch(item -> item.getService().getId().equals(execution.getService().getId())))
             .map(ComplexService::getCoefficient)
             .orElse(BigDecimal.ONE);
-    }
-
-    private BillingService accountingAndStorageService() {
-        return billingServiceRepository.findByNameIgnoreCase(ACCOUNTING_AND_STORAGE_SERVICE_NAME)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Service was not found: " + ACCOUNTING_AND_STORAGE_SERVICE_NAME));
     }
 
     private boolean isService(BillingService service, String name) {
