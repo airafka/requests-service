@@ -336,6 +336,22 @@ h2 {
   gap: 10px;
 }
 
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.table-actions button {
+  height: 30px;
+  border: 1px solid #d8dde3;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #3472ed;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .back-button {
   display: inline-flex;
   height: 32px;

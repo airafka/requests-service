@@ -29,6 +29,11 @@ type Page =
   | "billing-clients"
   | "billing-client-details"
   | "billing-order-details"
+  | "billing-periods"
+  | "billing-period-create"
+  | "billing-period-details"
+  | "billing-accruals"
+  | "billing-accrual-details"
   | "storage-periods"
   | "storage-accruals"
   | "service-executions"
@@ -286,6 +291,47 @@ type ServiceExecution = {
   sources: ServiceExecutionSource[] | null;
 };
 
+type BillingPeriodStatus = "DRAFT" | "CALCULATED" | "CLOSED" | "CANCELLED";
+type BillingAccrualStatus = "CALCULATED" | "CANCELLED";
+
+type BillingPeriod = {
+  id: number;
+  name: string;
+  dateFrom: string;
+  dateTo: string;
+  status: BillingPeriodStatus;
+  createdAt: string;
+  updatedAt: string;
+  accruals: BillingAccrual[] | null;
+};
+
+type BillingAccrualSource = {
+  id: number;
+  serviceExecutionId: number;
+  createdAt: string;
+  serviceExecution: ServiceExecution;
+};
+
+type BillingAccrual = {
+  id: number;
+  billingPeriodId: number;
+  billingPeriodName: string;
+  clientId: number;
+  clientName: string;
+  serviceId: number;
+  serviceName: string;
+  tariffId: number;
+  tariffName: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  amount: number;
+  status: BillingAccrualStatus;
+  createdAt: string;
+  updatedAt: string;
+  sources: BillingAccrualSource[] | null;
+};
+
 type ComplexServiceFormItem = {
   serviceId: string;
   operationCount: string;
@@ -312,6 +358,8 @@ function App() {
   const [storagePeriods, setStoragePeriods] = React.useState<ContainerStoragePeriod[]>([]);
   const [storageAccruals, setStorageAccruals] = React.useState<ContainerStorageDailyAccrual[]>([]);
   const [serviceExecutions, setServiceExecutions] = React.useState<ServiceExecution[]>([]);
+  const [billingPeriods, setBillingPeriods] = React.useState<BillingPeriod[]>([]);
+  const [billingAccruals, setBillingAccruals] = React.useState<BillingAccrual[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
   const [selectedTosOrderId, setSelectedTosOrderId] = React.useState<number | null>(null);
   const [selectedTosShippingOrderId, setSelectedTosShippingOrderId] = React.useState<number | null>(null);
@@ -323,6 +371,8 @@ function App() {
   const [selectedServiceId, setSelectedServiceId] = React.useState<number | null>(null);
   const [selectedComplexServiceId, setSelectedComplexServiceId] = React.useState<number | null>(null);
   const [selectedServiceExecutionId, setSelectedServiceExecutionId] = React.useState<number | null>(null);
+  const [selectedBillingPeriodId, setSelectedBillingPeriodId] = React.useState<number | null>(null);
+  const [selectedAccrualId, setSelectedAccrualId] = React.useState<number | null>(null);
   const [receivingClientId, setReceivingClientId] = React.useState("");
   const [receivingComplexServiceId, setReceivingComplexServiceId] = React.useState("");
   const [plannedReceivingDate, setPlannedReceivingDate] = React.useState(todayLocalDate());
@@ -345,6 +395,9 @@ function App() {
   const [newComplexServiceName, setNewComplexServiceName] = React.useState("");
   const [newComplexServiceCoefficient, setNewComplexServiceCoefficient] = React.useState("1");
   const [newComplexServiceItems, setNewComplexServiceItems] = React.useState<ComplexServiceFormItem[]>([]);
+  const [newBillingPeriodName, setNewBillingPeriodName] = React.useState("");
+  const [newBillingPeriodDateFrom, setNewBillingPeriodDateFrom] = React.useState(todayLocalDate());
+  const [newBillingPeriodDateTo, setNewBillingPeriodDateTo] = React.useState(todayLocalDate());
   const [isReceivingDropdownOpen, setIsReceivingDropdownOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -363,6 +416,10 @@ function App() {
     complexServices.find((complexService) => complexService.id === selectedComplexServiceId) ?? null;
   const selectedServiceExecution =
     serviceExecutions.find((execution) => execution.id === selectedServiceExecutionId) ?? null;
+  const selectedBillingPeriod =
+    billingPeriods.find((period) => period.id === selectedBillingPeriodId) ?? null;
+  const selectedBillingAccrual =
+    billingAccruals.find((accrual) => accrual.id === selectedAccrualId) ?? null;
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
@@ -384,6 +441,8 @@ function App() {
         storagePeriodsResponse,
         storageAccrualsResponse,
         serviceExecutionsResponse,
+        billingPeriodsResponse,
+        billingAccrualsResponse,
       ] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
         fetch(`${API_BASE}/shipping-orders`),
@@ -399,6 +458,8 @@ function App() {
         fetch(`${API_BASE}/storage-periods`),
         fetch(`${API_BASE}/storage-accruals`),
         fetch(`${API_BASE}/service-executions`),
+        fetch(`${API_BASE}/billing-periods`),
+        fetch(`${API_BASE}/billing-accruals`),
       ]);
 
       if (
@@ -415,7 +476,9 @@ function App() {
         !tosFactsResponse.ok ||
         !storagePeriodsResponse.ok ||
         !storageAccrualsResponse.ok ||
-        !serviceExecutionsResponse.ok
+        !serviceExecutionsResponse.ok ||
+        !billingPeriodsResponse.ok ||
+        !billingAccrualsResponse.ok
       ) {
         throw new Error("Не удалось загрузить данные");
       }
@@ -434,6 +497,8 @@ function App() {
       setStoragePeriods(await storagePeriodsResponse.json());
       setStorageAccruals(await storageAccrualsResponse.json());
       setServiceExecutions(await serviceExecutionsResponse.json());
+      setBillingPeriods(await billingPeriodsResponse.json());
+      setBillingAccruals(await billingAccrualsResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неизвестная ошибка");
     } finally {
@@ -628,6 +693,100 @@ function App() {
     );
     setSelectedServiceExecutionId(detailedExecution.id);
     setPage("service-execution-details");
+  }
+
+  async function createBillingPeriod(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/billing-periods`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: newBillingPeriodName || null,
+        dateFrom: newBillingPeriodDateFrom,
+        dateTo: newBillingPeriodDateTo,
+      }),
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось создать расчетный период"));
+      return;
+    }
+
+    const createdPeriod: BillingPeriod = await response.json();
+    setNewBillingPeriodName("");
+    setNewBillingPeriodDateFrom(todayLocalDate());
+    setNewBillingPeriodDateTo(todayLocalDate());
+    await loadData();
+    setSelectedBillingPeriodId(createdPeriod.id);
+    setPage("billing-period-details");
+  }
+
+  async function openBillingPeriod(period: BillingPeriod) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/billing-periods/${period.id}`);
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось открыть расчетный период"));
+      return;
+    }
+
+    const detailedPeriod: BillingPeriod = await response.json();
+    setBillingPeriods((currentPeriods) =>
+      currentPeriods.map((currentPeriod) => (currentPeriod.id === detailedPeriod.id ? detailedPeriod : currentPeriod)),
+    );
+    setSelectedBillingPeriodId(detailedPeriod.id);
+    setPage("billing-period-details");
+  }
+
+  async function calculateBillingPeriod(periodId: number) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/billing-periods/${periodId}/calculate`, {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось рассчитать период"));
+      return;
+    }
+
+    await loadData();
+  }
+
+  async function closeBillingPeriod(periodId: number) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/billing-periods/${periodId}/close`, {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось закрыть период"));
+      return;
+    }
+
+    await loadData();
+  }
+
+  async function openBillingAccrual(accrual: BillingAccrual) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/billing-accruals/${accrual.id}`);
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось открыть начисление"));
+      return;
+    }
+
+    const detailedAccrual: BillingAccrual = await response.json();
+    setBillingAccruals((currentAccruals) =>
+      currentAccruals.map((currentAccrual) =>
+        currentAccrual.id === detailedAccrual.id ? detailedAccrual : currentAccrual,
+      ),
+    );
+    setSelectedAccrualId(detailedAccrual.id);
+    setPage("billing-accrual-details");
   }
 
   async function changeBillingDate(date: string) {
@@ -1321,6 +1480,14 @@ function App() {
                 <Calculator size={18} />
                 <span>Биллинг</span>
               </button>
+              <button className={page.startsWith("billing-period") ? "active" : ""} type="button" onClick={() => setPage("billing-periods")}>
+                <CalendarDays size={18} />
+                <span>Расчетные периоды</span>
+              </button>
+              <button className={page.startsWith("billing-accrual") ? "active" : ""} type="button" onClick={() => setPage("billing-accruals")}>
+                <Calculator size={18} />
+                <span>Реестр начислений</span>
+              </button>
               <button className={page === "storage-periods" ? "active" : ""} type="button" onClick={() => setPage("storage-periods")}>
                 <Box size={18} />
                 <span>Хранение КТК</span>
@@ -1479,6 +1646,53 @@ function App() {
             containers={containers}
             billingDate={billingDate}
             onBack={() => setPage("billing-client-details")}
+          />
+        )}
+
+        {page === "billing-periods" && (
+          <BillingPeriodsPage
+            periods={billingPeriods}
+            isLoading={isLoading}
+            onCreate={() => setPage("billing-period-create")}
+            onOpen={(period) => void openBillingPeriod(period)}
+            onCalculate={(periodId) => void calculateBillingPeriod(periodId)}
+            onClose={(periodId) => void closeBillingPeriod(periodId)}
+          />
+        )}
+
+        {page === "billing-period-create" && (
+          <CreateBillingPeriodPage
+            name={newBillingPeriodName}
+            dateFrom={newBillingPeriodDateFrom}
+            dateTo={newBillingPeriodDateTo}
+            onBack={() => setPage("billing-periods")}
+            onSubmit={createBillingPeriod}
+            onNameChange={setNewBillingPeriodName}
+            onDateFromChange={setNewBillingPeriodDateFrom}
+            onDateToChange={setNewBillingPeriodDateTo}
+          />
+        )}
+
+        {page === "billing-period-details" && (
+          <BillingPeriodDetailsPage
+            period={selectedBillingPeriod}
+            onBack={() => setPage("billing-periods")}
+            onOpenAccrual={(accrual) => void openBillingAccrual(accrual)}
+          />
+        )}
+
+        {page === "billing-accruals" && (
+          <BillingAccrualsPage
+            accruals={billingAccruals}
+            isLoading={isLoading}
+            onOpen={(accrual) => void openBillingAccrual(accrual)}
+          />
+        )}
+
+        {page === "billing-accrual-details" && (
+          <BillingAccrualDetailsPage
+            accrual={selectedBillingAccrual}
+            onBack={() => setPage("billing-accruals")}
           />
         )}
 
@@ -3146,6 +3360,234 @@ function BillingClientsPage({
   );
 }
 
+function BillingPeriodsPage({
+  periods,
+  isLoading,
+  onCreate,
+  onOpen,
+  onCalculate,
+  onClose,
+}: {
+  periods: BillingPeriod[];
+  isLoading: boolean;
+  onCreate: () => void;
+  onOpen: (period: BillingPeriod) => void;
+  onCalculate: (periodId: number) => void;
+  onClose: (periodId: number) => void;
+}) {
+  return (
+    <>
+      <PageHead title="Расчетные периоды">
+        <button className="design-button" type="button" onClick={onCreate}>
+          Создать период
+        </button>
+      </PageHead>
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Название периода", "Дата с", "Дата по", "Статус", "Действие"]}>
+            {periods.map((period) => (
+              <tr key={period.id}>
+                <td>{period.name}</td>
+                <td>{formatDate(period.dateFrom)}</td>
+                <td>{formatDate(period.dateTo)}</td>
+                <td>{billingPeriodStatusLabel(period.status)}</td>
+                <td>
+                  <div className="table-actions">
+                    <button type="button" onClick={() => onOpen(period)}>
+                      Открыть
+                    </button>
+                    {period.status === "DRAFT" && (
+                      <button type="button" onClick={() => onCalculate(period.id)}>
+                        Рассчитать
+                      </button>
+                    )}
+                    {period.status === "CALCULATED" && (
+                      <button type="button" onClick={() => onClose(period.id)}>
+                        Закрыть
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {periods.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Расчетных периодов пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function CreateBillingPeriodPage({
+  name,
+  dateFrom,
+  dateTo,
+  onBack,
+  onSubmit,
+  onNameChange,
+  onDateFromChange,
+  onDateToChange,
+}: {
+  name: string;
+  dateFrom: string;
+  dateTo: string;
+  onBack: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onNameChange: (value: string) => void;
+  onDateFromChange: (value: string) => void;
+  onDateToChange: (value: string) => void;
+}) {
+  return (
+    <div className="uikit-form-shell">
+      <PageCard>
+        <BackButton onClick={onBack} />
+        <h1>Новый расчетный период</h1>
+        <form className="form-panel inner-form" onSubmit={onSubmit}>
+          <label>
+            Название
+            <input value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="Май 2026" />
+          </label>
+          <label>
+            Дата с
+            <input type="date" value={dateFrom} onChange={(event) => onDateFromChange(event.target.value)} required />
+          </label>
+          <label>
+            Дата по
+            <input type="date" value={dateTo} onChange={(event) => onDateToChange(event.target.value)} required />
+          </label>
+          <SubmitButton label="Создать период" />
+        </form>
+      </PageCard>
+    </div>
+  );
+}
+
+function BillingPeriodDetailsPage({
+  period,
+  onBack,
+  onOpenAccrual,
+}: {
+  period: BillingPeriod | null;
+  onBack: () => void;
+  onOpenAccrual: (accrual: BillingAccrual) => void;
+}) {
+  if (!period) {
+    return <NotSelected title="Расчетный период не выбран" onBack={onBack} />;
+  }
+
+  return (
+    <section className="details-panel">
+      <BackButton onClick={onBack} />
+      <h1>{period.name}</h1>
+      <div className="details-grid">
+        <DetailItem label="Дата с" value={formatDate(period.dateFrom)} />
+        <DetailItem label="Дата по" value={formatDate(period.dateTo)} />
+        <DetailItem label="Статус" value={billingPeriodStatusLabel(period.status)} />
+      </div>
+
+      <h2>Начисления</h2>
+      <OrdersTable columns={["Клиент", "Услуга", "Количество", "Ед.", "Тариф", "Цена", "Сумма", "Статус"]}>
+        {(period.accruals ?? []).map((accrual) => (
+          <tr className="clickable-row" key={accrual.id} onClick={() => onOpenAccrual(accrual)}>
+            <td>{accrual.clientName}</td>
+            <td>{accrual.serviceName}</td>
+            <td>{formatQuantity(accrual.quantity)}</td>
+            <td>{accrual.unit}</td>
+            <td>{accrual.tariffName || `#${accrual.tariffId}`}</td>
+            <td>{formatMoney(accrual.unitPrice)}</td>
+            <td>{formatMoney(accrual.amount)}</td>
+            <td>{billingAccrualStatusLabel(accrual.status)}</td>
+          </tr>
+        ))}
+        {(period.accruals ?? []).length === 0 && <EmptyRow colSpan={8} text="Начислений по периоду пока нет" />}
+      </OrdersTable>
+    </section>
+  );
+}
+
+function BillingAccrualsPage({
+  accruals,
+  isLoading,
+  onOpen,
+}: {
+  accruals: BillingAccrual[];
+  isLoading: boolean;
+  onOpen: (accrual: BillingAccrual) => void;
+}) {
+  return (
+    <>
+      <PageHead title="Реестр начислений" />
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Период", "Клиент", "Услуга", "Количество", "Единица", "Тариф", "Цена за единицу", "Сумма", "Статус"]}>
+            {accruals.map((accrual) => (
+              <tr className="clickable-row" key={accrual.id} onClick={() => onOpen(accrual)}>
+                <td>{accrual.billingPeriodName}</td>
+                <td>{accrual.clientName}</td>
+                <td>{accrual.serviceName}</td>
+                <td>{formatQuantity(accrual.quantity)}</td>
+                <td>{accrual.unit}</td>
+                <td>{accrual.tariffName || `#${accrual.tariffId}`}</td>
+                <td>{formatMoney(accrual.unitPrice)}</td>
+                <td>{formatMoney(accrual.amount)}</td>
+                <td>{billingAccrualStatusLabel(accrual.status)}</td>
+              </tr>
+            ))}
+            {accruals.length === 0 && <EmptyRow colSpan={9} text={isLoading ? "Загрузка..." : "Начислений пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function BillingAccrualDetailsPage({
+  accrual,
+  onBack,
+}: {
+  accrual: BillingAccrual | null;
+  onBack: () => void;
+}) {
+  if (!accrual) {
+    return <NotSelected title="Начисление не выбрано" onBack={onBack} />;
+  }
+
+  return (
+    <section className="details-panel">
+      <BackButton onClick={onBack} />
+      <h1>Начисление</h1>
+      <div className="details-grid">
+        <DetailItem label="Период" value={accrual.billingPeriodName} />
+        <DetailItem label="Клиент" value={accrual.clientName} />
+        <DetailItem label="Услуга" value={accrual.serviceName} />
+        <DetailItem label="Тариф" value={accrual.tariffName || `#${accrual.tariffId}`} />
+        <DetailItem label="Количество" value={formatQuantity(accrual.quantity)} />
+        <DetailItem label="Единица" value={accrual.unit} />
+        <DetailItem label="Цена за единицу" value={formatMoney(accrual.unitPrice)} />
+        <DetailItem label="Сумма" value={formatMoney(accrual.amount)} />
+        <DetailItem label="Статус" value={billingAccrualStatusLabel(accrual.status)} />
+      </div>
+
+      <h2>Оказанные услуги в начислении</h2>
+      <OrdersTable columns={["Дата", "КТК", "Услуга", "Количество", "Источник", "Статус"]}>
+        {(accrual.sources ?? []).map((source) => (
+          <tr key={source.id}>
+            <td>{serviceExecutionPeriodLabel(source.serviceExecution)}</td>
+            <td>{source.serviceExecution.containerNumber}</td>
+            <td>{source.serviceExecution.serviceName}</td>
+            <td>{source.serviceExecution.quantity}</td>
+            <td>{source.serviceExecution.sourceType}</td>
+            <td>{serviceExecutionStatusLabel(source.serviceExecution.status)}</td>
+          </tr>
+        ))}
+        {(accrual.sources ?? []).length === 0 && <EmptyRow colSpan={6} text="Оказанные услуги не загружены" />}
+      </OrdersTable>
+    </section>
+  );
+}
+
 function BillingClientDetailsPage({
   client,
   orders,
@@ -3778,6 +4220,28 @@ function serviceExecutionStatusLabel(status: ServiceExecutionStatus) {
   }
 }
 
+function billingPeriodStatusLabel(status: BillingPeriodStatus) {
+  switch (status) {
+    case "DRAFT":
+      return "Черновик";
+    case "CALCULATED":
+      return "Рассчитан";
+    case "CLOSED":
+      return "Закрыт";
+    case "CANCELLED":
+      return "Отменен";
+  }
+}
+
+function billingAccrualStatusLabel(status: BillingAccrualStatus) {
+  switch (status) {
+    case "CALCULATED":
+      return "Рассчитано";
+    case "CANCELLED":
+      return "Отменено";
+  }
+}
+
 function basisLabel(basisType: ServiceExecutionBasisType, basisId: number | null) {
   return `${basisType}${basisId == null ? "" : ` #${basisId}`}`;
 }
@@ -4084,6 +4548,13 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat("ru-RU", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatQuantity(value: number) {
+  return new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
   }).format(value);
 }
 
