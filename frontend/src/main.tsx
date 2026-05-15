@@ -31,6 +31,8 @@ type Page =
   | "billing-order-details"
   | "storage-periods"
   | "storage-accruals"
+  | "service-executions"
+  | "service-execution-details"
   | "shipping-list"
   | "shipping-create"
   | "shipping-details"
@@ -239,6 +241,51 @@ type ContainerStorageDailyAccrual = {
   updatedAt: string;
 };
 
+type ServiceExecutionType = "ONE_TIME" | "CONTINUOUS";
+type ServiceExecutionStatus = "DRAFT" | "IN_PROGRESS" | "CONFIRMED" | "CANCELLED" | "ERROR";
+type ServiceExecutionSourceType = "TOS" | "SYSTEM" | "MANUAL";
+type ServiceExecutionBasisType =
+  | "TOS_OPERATION_FACT"
+  | "STORAGE_DAILY_ACCRUAL"
+  | "CONTAINER_STORAGE_PERIOD"
+  | "RECEIVING_ORDER"
+  | "SHIPPING_ORDER"
+  | "OWNER_CHANGE_ORDER"
+  | "SYSTEM";
+type ServiceExecutionFactSourceType = "TOS_OPERATION_FACT" | "STORAGE_DAILY_ACCRUAL" | "STORAGE_PERIOD" | "SYSTEM";
+
+type ServiceExecutionSource = {
+  id: number;
+  sourceType: ServiceExecutionFactSourceType;
+  sourceId: number;
+  createdAt: string;
+  tosOperationFact: TosOperationFact | null;
+  storageDailyAccrual: ContainerStorageDailyAccrual | null;
+};
+
+type ServiceExecution = {
+  id: number;
+  clientId: number;
+  clientName: string;
+  containerId: number;
+  containerNumber: string;
+  serviceId: number;
+  serviceName: string;
+  executionType: ServiceExecutionType;
+  dateFrom: string;
+  dateTo: string | null;
+  quantity: number;
+  unit: string;
+  sourceType: ServiceExecutionSourceType;
+  basisType: ServiceExecutionBasisType;
+  basisId: number | null;
+  status: ServiceExecutionStatus;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sources: ServiceExecutionSource[] | null;
+};
+
 type ComplexServiceFormItem = {
   serviceId: string;
   operationCount: string;
@@ -264,6 +311,7 @@ function App() {
   const [tosOperationFacts, setTosOperationFacts] = React.useState<TosOperationFact[]>([]);
   const [storagePeriods, setStoragePeriods] = React.useState<ContainerStoragePeriod[]>([]);
   const [storageAccruals, setStorageAccruals] = React.useState<ContainerStorageDailyAccrual[]>([]);
+  const [serviceExecutions, setServiceExecutions] = React.useState<ServiceExecution[]>([]);
   const [selectedReceivingOrderId, setSelectedReceivingOrderId] = React.useState<number | null>(null);
   const [selectedTosOrderId, setSelectedTosOrderId] = React.useState<number | null>(null);
   const [selectedTosShippingOrderId, setSelectedTosShippingOrderId] = React.useState<number | null>(null);
@@ -274,6 +322,7 @@ function App() {
   const [selectedOperationId, setSelectedOperationId] = React.useState<number | null>(null);
   const [selectedServiceId, setSelectedServiceId] = React.useState<number | null>(null);
   const [selectedComplexServiceId, setSelectedComplexServiceId] = React.useState<number | null>(null);
+  const [selectedServiceExecutionId, setSelectedServiceExecutionId] = React.useState<number | null>(null);
   const [receivingClientId, setReceivingClientId] = React.useState("");
   const [receivingComplexServiceId, setReceivingComplexServiceId] = React.useState("");
   const [plannedReceivingDate, setPlannedReceivingDate] = React.useState(todayLocalDate());
@@ -312,6 +361,8 @@ function App() {
   const selectedService = billingServices.find((service) => service.id === selectedServiceId) ?? null;
   const selectedComplexService =
     complexServices.find((complexService) => complexService.id === selectedComplexServiceId) ?? null;
+  const selectedServiceExecution =
+    serviceExecutions.find((execution) => execution.id === selectedServiceExecutionId) ?? null;
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
@@ -332,6 +383,7 @@ function App() {
         tosFactsResponse,
         storagePeriodsResponse,
         storageAccrualsResponse,
+        serviceExecutionsResponse,
       ] = await Promise.all([
         fetch(`${API_BASE}/receiving-orders`),
         fetch(`${API_BASE}/shipping-orders`),
@@ -346,6 +398,7 @@ function App() {
         fetch(`${API_BASE}/tos-operation-facts`),
         fetch(`${API_BASE}/storage-periods`),
         fetch(`${API_BASE}/storage-accruals`),
+        fetch(`${API_BASE}/service-executions`),
       ]);
 
       if (
@@ -361,7 +414,8 @@ function App() {
         !complexServicesResponse.ok ||
         !tosFactsResponse.ok ||
         !storagePeriodsResponse.ok ||
-        !storageAccrualsResponse.ok
+        !storageAccrualsResponse.ok ||
+        !serviceExecutionsResponse.ok
       ) {
         throw new Error("Не удалось загрузить данные");
       }
@@ -379,6 +433,7 @@ function App() {
       setTosOperationFacts(await tosFactsResponse.json());
       setStoragePeriods(await storagePeriodsResponse.json());
       setStorageAccruals(await storageAccrualsResponse.json());
+      setServiceExecutions(await serviceExecutionsResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Неизвестная ошибка");
     } finally {
@@ -485,6 +540,8 @@ function App() {
 
     const response = await fetch(`${API_BASE}/receiving-orders/${orderId}/containers/${linkId}/services/${serviceId}/finish`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actualDate: billingDate }),
     });
 
     if (!response.ok) {
@@ -552,6 +609,25 @@ function App() {
     }
 
     await loadData();
+  }
+
+  async function openServiceExecution(execution: ServiceExecution) {
+    setError(null);
+
+    const response = await fetch(`${API_BASE}/service-executions/${execution.id}`);
+    if (!response.ok) {
+      setError(await errorText(response, "Не удалось открыть оказанную услугу"));
+      return;
+    }
+
+    const detailedExecution: ServiceExecution = await response.json();
+    setServiceExecutions((currentExecutions) =>
+      currentExecutions.map((currentExecution) =>
+        currentExecution.id === detailedExecution.id ? detailedExecution : currentExecution,
+      ),
+    );
+    setSelectedServiceExecutionId(detailedExecution.id);
+    setPage("service-execution-details");
   }
 
   async function changeBillingDate(date: string) {
@@ -1141,82 +1217,139 @@ function App() {
           <span>ALIS</span>
         </div>
         <nav className="sidebar-nav">
-          <button
-            className={page.startsWith("receiving") ? "active" : ""}
-            type="button"
-            onClick={() => setPage("receiving-list")}
-          >
-            <FileText size={18} />
-            <span>Заявки на поставку</span>
-          </button>
-          <button
-            className={page.startsWith("owner") ? "active" : ""}
-            type="button"
-            onClick={() => setPage("owner-list")}
-          >
-            <Repeat2 size={18} />
-            <span>Заявки на услуги</span>
-          </button>
-          <button className={page.startsWith("tos") ? "active" : ""} type="button" onClick={() => setPage("tos-list")}>
-            <ClipboardCheck size={18} />
-            <span>TOS</span>
-          </button>
-          <button className={page === "tos-facts" ? "active" : ""} type="button" onClick={() => setPage("tos-facts")}>
-            <Database size={18} />
-            <span>Журнал TOS</span>
-          </button>
-          <button className={page.startsWith("billing") ? "active" : ""} type="button" onClick={() => setPage("billing-clients")}>
-            <Calculator size={18} />
-            <span>Биллинг</span>
-          </button>
-          <button className={page === "storage-periods" ? "active" : ""} type="button" onClick={() => setPage("storage-periods")}>
-            <Box size={18} />
-            <span>Хранение КТК</span>
-          </button>
-          <button className={page === "storage-accruals" ? "active" : ""} type="button" onClick={() => setPage("storage-accruals")}>
-            <CalendarDays size={18} />
-            <span>Начисления хранения</span>
-          </button>
-          <button
-            className={page.startsWith("shipping") ? "active" : ""}
-            type="button"
-            onClick={() => setPage("shipping-list")}
-          >
-            <Truck size={18} />
-            <span>Заявки на вывоз</span>
-          </button>
-          <button
-            className={page.startsWith("containers") || page === "container-owner-details" ? "active" : ""}
-            type="button"
-            onClick={() => setPage("containers-list")}
-          >
-            <Box size={18} />
-            <span>КТК</span>
-          </button>
-          <button
-            className={page.startsWith("operations") ? "active" : ""}
-            type="button"
-            onClick={() => setPage("operations-list")}
-          >
-            <ListChecks size={18} />
-            <span>Операции</span>
-          </button>
-          <button
-            className={page.startsWith("services") ? "active" : ""}
-            type="button"
-            onClick={() => setPage("services-list")}
-          >
-            <PackageCheck size={18} />
-            <span>Услуги</span>
-          </button>
-          <button
-            className={page.startsWith("complex-services") ? "active" : ""}
-            type="button"
-            onClick={() => setPage("complex-services-list")}
-          >
-            <Layers3 size={18} />
-            <span>Комплексные услуги</span>
-          </button>
+          <details className="sidebar-group">
+            <summary className={page.startsWith("receiving") || page.startsWith("shipping") || page.startsWith("owner") ? "active" : ""}>
+              <span>Заявки</span>
+              <ChevronDown size={16} />
+            </summary>
+            <div className="sidebar-group-items">
+              <button
+                className={page.startsWith("receiving") ? "active" : ""}
+                type="button"
+                onClick={() => setPage("receiving-list")}
+              >
+                <FileText size={18} />
+                <span>Заявки на поставку</span>
+              </button>
+              <button
+                className={page.startsWith("shipping") ? "active" : ""}
+                type="button"
+                onClick={() => setPage("shipping-list")}
+              >
+                <Truck size={18} />
+                <span>Заявки на вывоз</span>
+              </button>
+              <button
+                className={page.startsWith("owner") ? "active" : ""}
+                type="button"
+                onClick={() => setPage("owner-list")}
+              >
+                <Repeat2 size={18} />
+                <span>Заявки на услуги</span>
+              </button>
+            </div>
+          </details>
+
+          <details className="sidebar-group">
+            <summary
+              className={
+                page.startsWith("containers") ||
+                page === "container-owner-details" ||
+                page.startsWith("operations") ||
+                page.startsWith("services") ||
+                page.startsWith("complex-services")
+                  ? "active"
+                  : ""
+              }
+            >
+              <span>Справочники</span>
+              <ChevronDown size={16} />
+            </summary>
+            <div className="sidebar-group-items">
+              <button
+                className={page.startsWith("containers") || page === "container-owner-details" ? "active" : ""}
+                type="button"
+                onClick={() => setPage("containers-list")}
+              >
+                <Box size={18} />
+                <span>КТК</span>
+              </button>
+              <button
+                className={page.startsWith("operations") ? "active" : ""}
+                type="button"
+                onClick={() => setPage("operations-list")}
+              >
+                <ListChecks size={18} />
+                <span>Операции</span>
+              </button>
+              <button
+                className={page.startsWith("services") ? "active" : ""}
+                type="button"
+                onClick={() => setPage("services-list")}
+              >
+                <PackageCheck size={18} />
+                <span>Услуги</span>
+              </button>
+              <button
+                className={page.startsWith("complex-services") ? "active" : ""}
+                type="button"
+                onClick={() => setPage("complex-services-list")}
+              >
+                <Layers3 size={18} />
+                <span>Комплексные услуги</span>
+              </button>
+            </div>
+          </details>
+
+          <details className="sidebar-group">
+            <summary
+              className={
+                page.startsWith("billing") ||
+                page === "storage-periods" ||
+                page === "storage-accruals" ||
+                page === "tos-facts" ||
+                page.startsWith("service-execution")
+                  ? "active"
+                  : ""
+              }
+            >
+              <span>Биллинг</span>
+              <ChevronDown size={16} />
+            </summary>
+            <div className="sidebar-group-items">
+              <button className={page.startsWith("billing") ? "active" : ""} type="button" onClick={() => setPage("billing-clients")}>
+                <Calculator size={18} />
+                <span>Биллинг</span>
+              </button>
+              <button className={page === "storage-periods" ? "active" : ""} type="button" onClick={() => setPage("storage-periods")}>
+                <Box size={18} />
+                <span>Хранение КТК</span>
+              </button>
+              <button className={page === "storage-accruals" ? "active" : ""} type="button" onClick={() => setPage("storage-accruals")}>
+                <CalendarDays size={18} />
+                <span>Начисления хранения</span>
+              </button>
+              <button className={page === "tos-facts" ? "active" : ""} type="button" onClick={() => setPage("tos-facts")}>
+                <Database size={18} />
+                <span>Журнал TOS</span>
+              </button>
+              <button
+                className={page.startsWith("service-execution") ? "active" : ""}
+                type="button"
+                onClick={() => setPage("service-executions")}
+              >
+                <PackageCheck size={18} />
+                <span>Реестр оказанных услуг</span>
+              </button>
+            </div>
+          </details>
+
+          <div className="sidebar-standalone sidebar-bottom-item">
+            <button className={page.startsWith("tos") && page !== "tos-facts" ? "active" : ""} type="button" onClick={() => setPage("tos-list")}>
+              <ClipboardCheck size={18} />
+              <span>TOS</span>
+            </button>
+          </div>
         </nav>
       </aside>
 
@@ -1357,6 +1490,21 @@ function App() {
           <ContainerStorageAccrualsPage
             accruals={storageAccruals}
             isLoading={isLoading}
+          />
+        )}
+
+        {page === "service-executions" && (
+          <ServiceExecutionsPage
+            executions={serviceExecutions}
+            isLoading={isLoading}
+            onOpen={(execution) => void openServiceExecution(execution)}
+          />
+        )}
+
+        {page === "service-execution-details" && (
+          <ServiceExecutionDetailsPage
+            execution={selectedServiceExecution}
+            onBack={() => setPage("service-executions")}
           />
         )}
 
@@ -1805,6 +1953,87 @@ function ContainerStorageAccrualsPage({
         </PageCard>
       </div>
     </>
+  );
+}
+
+function ServiceExecutionsPage({
+  executions,
+  isLoading,
+  onOpen,
+}: {
+  executions: ServiceExecution[];
+  isLoading: boolean;
+  onOpen: (execution: ServiceExecution) => void;
+}) {
+  const visibleExecutions = executions.filter((execution) => execution.status !== "CANCELLED");
+
+  return (
+    <>
+      <PageHead title="Реестр оказанных услуг" />
+
+      <div className="uikit-table-card">
+        <PageCard>
+          <OrdersTable columns={["Дата", "Клиент", "КТК", "Услуга", "Кол-во", "Ед.", "Статус"]}>
+            {visibleExecutions.map((execution) => (
+              <tr className="clickable-row" key={execution.id} onClick={() => onOpen(execution)}>
+                <td>{serviceExecutionPeriodLabel(execution)}</td>
+                <td>{execution.clientName}</td>
+                <td>{execution.containerNumber}</td>
+                <td>{execution.serviceName}</td>
+                <td>{execution.quantity}</td>
+                <td>{execution.unit}</td>
+                <td>{serviceExecutionStatusLabel(execution.status)}</td>
+              </tr>
+            ))}
+            {visibleExecutions.length === 0 && <EmptyRow colSpan={7} text={isLoading ? "Загрузка..." : "Оказанных услуг пока нет"} />}
+          </OrdersTable>
+        </PageCard>
+      </div>
+    </>
+  );
+}
+
+function ServiceExecutionDetailsPage({
+  execution,
+  onBack,
+}: {
+  execution: ServiceExecution | null;
+  onBack: () => void;
+}) {
+  if (!execution) {
+    return <NotSelected title="Оказанная услуга не выбрана" onBack={onBack} />;
+  }
+
+  return (
+    <section className="details-panel">
+      <BackButton onClick={onBack} />
+      <h1>Оказанная услуга</h1>
+      <div className="details-grid">
+        <DetailItem label="Клиент" value={execution.clientName} />
+        <DetailItem label="КТК" value={execution.containerNumber} />
+        <DetailItem label="Услуга" value={execution.serviceName} />
+        <DetailItem label="Тип услуги" value={serviceExecutionTypeLabel(execution.executionType)} />
+        <DetailItem label="Дата / период" value={serviceExecutionPeriodLabel(execution)} />
+        <DetailItem label="Количество" value={String(execution.quantity)} />
+        <DetailItem label="Единица измерения" value={execution.unit} />
+        <DetailItem label="Источник" value={execution.sourceType} />
+        <DetailItem label="Статус" value={serviceExecutionStatusLabel(execution.status)} />
+        <DetailItem label="Основание" value={basisLabel(execution.basisType, execution.basisId)} />
+        <DetailItem label="Создано" value={formatDateTime(execution.createdAt)} />
+      </div>
+
+      <h2>Источники</h2>
+      <OrdersTable columns={["Тип источника", "ID источника", "Данные"]}>
+        {(execution.sources ?? []).map((source) => (
+          <tr key={source.id}>
+            <td>{source.sourceType}</td>
+            <td>{source.sourceId}</td>
+            <td>{serviceExecutionSourceDetails(source)}</td>
+          </tr>
+        ))}
+        {(execution.sources ?? []).length === 0 && <EmptyRow colSpan={3} text="Источники не загружены" />}
+      </OrdersTable>
+    </section>
   );
 }
 
@@ -3515,6 +3744,56 @@ function storageAccrualStatusLabel(status: ContainerStorageDailyAccrual["status"
     case "CANCELLED":
       return "Отменено";
   }
+}
+
+function serviceExecutionPeriodLabel(execution: ServiceExecution) {
+  if (!execution.dateTo || execution.dateFrom === execution.dateTo) {
+    return formatDate(execution.dateFrom);
+  }
+
+  return `${formatDate(execution.dateFrom)} - ${formatDate(execution.dateTo)}`;
+}
+
+function serviceExecutionTypeLabel(type: ServiceExecutionType) {
+  switch (type) {
+    case "ONE_TIME":
+      return "Разовая";
+    case "CONTINUOUS":
+      return "Продолжительная";
+  }
+}
+
+function serviceExecutionStatusLabel(status: ServiceExecutionStatus) {
+  switch (status) {
+    case "DRAFT":
+      return "Черновик";
+    case "IN_PROGRESS":
+      return "В процессе";
+    case "CONFIRMED":
+      return "Оказана";
+    case "CANCELLED":
+      return "Отменена";
+    case "ERROR":
+      return "Ошибка";
+  }
+}
+
+function basisLabel(basisType: ServiceExecutionBasisType, basisId: number | null) {
+  return `${basisType}${basisId == null ? "" : ` #${basisId}`}`;
+}
+
+function serviceExecutionSourceDetails(source: ServiceExecutionSource) {
+  if (source.tosOperationFact) {
+    const fact = source.tosOperationFact;
+    return `${fact.operationCode}, ${formatDateTime(fact.operationTime)}, raw: ${rawPayloadText(fact.rawPayload)}`;
+  }
+
+  if (source.storageDailyAccrual) {
+    const accrual = source.storageDailyAccrual;
+    return `${formatDate(accrual.accrualDate)}, ${accrual.quantity} ${accrual.source}, ${storageAccrualStatusLabel(accrual.status)}`;
+  }
+
+  return "-";
 }
 
 function rawPayloadText(rawPayload: unknown) {

@@ -13,10 +13,16 @@ import java.time.ZoneId;
 public class TosOperationFactService {
     private final TosOperationFactRepository factRepository;
     private final ObjectMapper objectMapper;
+    private final ServiceExecutionService serviceExecutionService;
 
-    public TosOperationFactService(TosOperationFactRepository factRepository, ObjectMapper objectMapper) {
+    public TosOperationFactService(
+        TosOperationFactRepository factRepository,
+        ObjectMapper objectMapper,
+        ServiceExecutionService serviceExecutionService
+    ) {
         this.factRepository = factRepository;
         this.objectMapper = objectMapper;
+        this.serviceExecutionService = serviceExecutionService;
     }
 
     @Transactional
@@ -29,7 +35,7 @@ public class TosOperationFactService {
         );
         fact.setReceivingOrder(order);
         fact.setRawPayload(rawPayload("receiving_container_finish", order.getId(), link.getId(), null, 1));
-        factRepository.save(fact);
+        serviceExecutionService.processTosEvent(factRepository.saveAndFlush(fact));
     }
 
     @Transactional
@@ -37,7 +43,8 @@ public class TosOperationFactService {
         ReceivingOrder order,
         ReceivingOrderContainer link,
         BillingServiceExecution execution,
-        int quantity
+        int quantity,
+        LocalDate actualDate
     ) {
         BillingOperation operation = execution.getService().getOperations().stream().findFirst().orElse(null);
         String operationCode = operation == null ? execution.getService().getName() : operation.getName();
@@ -45,12 +52,12 @@ public class TosOperationFactService {
             "receiving-service-finish:" + link.getId() + ":" + execution.getService().getId() + ":" + quantity,
             operationCode,
             link.getContainer(),
-            OffsetDateTime.now()
+            startOfDay(actualDate)
         );
         fact.setOperation(operation);
         fact.setReceivingOrder(order);
         fact.setRawPayload(rawPayload("receiving_service_finish", order.getId(), link.getId(), execution.getService().getId(), 1));
-        factRepository.save(fact);
+        serviceExecutionService.processTosEvent(factRepository.saveAndFlush(fact));
     }
 
     @Transactional
@@ -63,7 +70,7 @@ public class TosOperationFactService {
         );
         fact.setShippingOrder(order);
         fact.setRawPayload(rawPayload("shipping_container_finish", order.getId(), link.getId(), null, 1));
-        factRepository.save(fact);
+        serviceExecutionService.processTosEvent(factRepository.saveAndFlush(fact));
     }
 
     private TosOperationFact baseFact(

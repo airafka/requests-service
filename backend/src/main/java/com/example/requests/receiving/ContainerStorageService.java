@@ -15,15 +15,18 @@ public class ContainerStorageService {
     private final ContainerStoragePeriodRepository periodRepository;
     private final ContainerStorageDailyAccrualRepository accrualRepository;
     private final BillingServiceRepository billingServiceRepository;
+    private final ServiceExecutionService serviceExecutionService;
 
     public ContainerStorageService(
         ContainerStoragePeriodRepository periodRepository,
         ContainerStorageDailyAccrualRepository accrualRepository,
-        BillingServiceRepository billingServiceRepository
+        BillingServiceRepository billingServiceRepository,
+        ServiceExecutionService serviceExecutionService
     ) {
         this.periodRepository = periodRepository;
         this.accrualRepository = accrualRepository;
         this.billingServiceRepository = billingServiceRepository;
+        this.serviceExecutionService = serviceExecutionService;
     }
 
     @Transactional
@@ -102,8 +105,7 @@ public class ContainerStorageService {
     @Transactional
     public List<ContainerStorageDailyAccrual> accrueStorageDay(LocalDate date) {
         BillingService service = storageService();
-        List<ContainerStoragePeriod> activePeriods = periodRepository
-            .findByStatusAndDateFromLessThanEqualOrderByDateFromAscIdAsc(ContainerStoragePeriodStatus.ACTIVE, date);
+        List<ContainerStoragePeriod> activePeriods = periodRepository.findAccruableForDate(date);
 
         return activePeriods.stream()
             .filter(period -> !accrualRepository.existsByStoragePeriodIdAndAccrualDate(period.getId(), date))
@@ -123,6 +125,7 @@ public class ContainerStorageService {
             ContainerStoragePeriod period = accrual.getStoragePeriod();
             period.setStorageDays(Math.max(period.getStorageDays() - accrual.getQuantity(), 0));
             periodRepository.save(period);
+            serviceExecutionService.cancelForStorageAccrual(accrual);
             accrualRepository.delete(accrual);
         }
     }
@@ -145,7 +148,9 @@ public class ContainerStorageService {
 
         period.setStorageDays(period.getStorageDays() + 1);
         periodRepository.save(period);
-        return accrualRepository.save(accrual);
+        ContainerStorageDailyAccrual saved = accrualRepository.saveAndFlush(accrual);
+        serviceExecutionService.createForStorageAccrual(saved);
+        return saved;
     }
 
     private void rollbackPeriodAccrualsOnOrAfter(ContainerStoragePeriod period, LocalDate date) {
@@ -158,6 +163,7 @@ public class ContainerStorageService {
 
         for (ContainerStorageDailyAccrual accrual : accruals) {
             period.setStorageDays(Math.max(period.getStorageDays() - accrual.getQuantity(), 0));
+            serviceExecutionService.cancelForStorageAccrual(accrual);
             accrualRepository.delete(accrual);
         }
     }

@@ -117,7 +117,8 @@ public class ReceivingOrderController {
     public ReceivingOrderResponse finishService(
         @PathVariable Long orderId,
         @PathVariable Long linkId,
-        @PathVariable Long serviceId
+        @PathVariable Long serviceId,
+        @Valid @RequestBody FinishContainerDto dto
     ) {
         ReceivingOrder order = orderRepository.findWithContainersById(orderId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Receiving order was not found"));
@@ -174,7 +175,7 @@ public class ReceivingOrderController {
         execution.setQuantity(nextQuantity);
         execution.setAmount(amount);
         serviceExecutionRepository.saveAndFlush(execution);
-        tosOperationFactService.recordReceivingServiceFinished(order, link, execution, nextQuantity);
+        tosOperationFactService.recordReceivingServiceFinished(order, link, execution, nextQuantity, dto.actualDate());
 
         return ReceivingOrderResponse.fromEntity(orderRepository.findWithContainersById(orderId).orElse(order));
     }
