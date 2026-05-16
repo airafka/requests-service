@@ -30,8 +30,16 @@ public class ContainerOwnerChangeOrder {
     @Column(nullable = false, unique = true, length = 64)
     private String number;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "new_client_id", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private ServiceRequestType requestType = ServiceRequestType.OWNER_CHANGE;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_id")
+    private BillingService service;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "new_client_id")
     private ClientEntity newClient;
 
     @Enumerated(EnumType.STRING)
@@ -86,6 +94,22 @@ public class ContainerOwnerChangeOrder {
 
     public void setNewClient(ClientEntity newClient) {
         this.newClient = newClient;
+    }
+
+    public ServiceRequestType getRequestType() {
+        return requestType;
+    }
+
+    public void setRequestType(ServiceRequestType requestType) {
+        this.requestType = requestType;
+    }
+
+    public BillingService getService() {
+        return service;
+    }
+
+    public void setService(BillingService service) {
+        this.service = service;
     }
 
     public ContainerOwnerChangeOrderStatus getStatus() {

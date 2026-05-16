@@ -7,5 +7,6 @@ public enum ServiceExecutionBasisType {
     RECEIVING_ORDER,
     SHIPPING_ORDER,
     OWNER_CHANGE_ORDER,
+    SERVICE_REQUEST,
     SYSTEM
 }

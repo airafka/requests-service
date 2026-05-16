@@ -7,6 +7,8 @@ import java.util.List;
 public record ContainerOwnerChangeOrderResponse(
     Long id,
     String number,
+    ServiceRequestType requestType,
+    BillingServiceResponse service,
     LocalDate serviceDate,
     ClientResponse newClient,
     String comment,
@@ -24,8 +26,10 @@ public record ContainerOwnerChangeOrderResponse(
         return new ContainerOwnerChangeOrderResponse(
             order.getId(),
             order.getNumber(),
+            order.getRequestType(),
+            order.getService() == null ? null : BillingServiceResponse.fromEntity(order.getService()),
             order.getServiceDate(),
-            ClientResponse.fromEntity(order.getNewClient()),
+            order.getNewClient() == null ? null : ClientResponse.fromEntity(order.getNewClient()),
             order.getComment(),
             order.getCreatedAt(),
             order.getCreatedBy(),

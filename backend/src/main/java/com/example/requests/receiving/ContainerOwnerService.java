@@ -21,26 +21,32 @@ public class ContainerOwnerService {
     private final ContainerOwnerChangeOrderRepository changeOrderRepository;
     private final ContainerRepository containerRepository;
     private final ClientRepository clientRepository;
+    private final BillingServiceRepository billingServiceRepository;
     private final ReceivingOrderContainerRepository receivingOrderContainerRepository;
     private final ShippingOrderContainerRepository shippingOrderContainerRepository;
     private final ContainerStorageService storageService;
+    private final ServiceExecutionService serviceExecutionService;
 
     public ContainerOwnerService(
         ContainerOwnerHistoryRepository historyRepository,
         ContainerOwnerChangeOrderRepository changeOrderRepository,
         ContainerRepository containerRepository,
         ClientRepository clientRepository,
+        BillingServiceRepository billingServiceRepository,
         ReceivingOrderContainerRepository receivingOrderContainerRepository,
         ShippingOrderContainerRepository shippingOrderContainerRepository,
-        ContainerStorageService storageService
+        ContainerStorageService storageService,
+        ServiceExecutionService serviceExecutionService
     ) {
         this.historyRepository = historyRepository;
         this.changeOrderRepository = changeOrderRepository;
         this.containerRepository = containerRepository;
         this.clientRepository = clientRepository;
+        this.billingServiceRepository = billingServiceRepository;
         this.receivingOrderContainerRepository = receivingOrderContainerRepository;
         this.shippingOrderContainerRepository = shippingOrderContainerRepository;
         this.storageService = storageService;
+        this.serviceExecutionService = serviceExecutionService;
     }
 
     @Transactional
@@ -109,10 +115,22 @@ public class ContainerOwnerService {
 
     @Transactional
     public ContainerOwnerChangeOrder createChangeOrder(CreateContainerOwnerChangeOrderDto dto) {
-        validateOwnerChangeDate(dto.serviceDate());
-
-        ClientEntity newClient = clientRepository.findById(dto.newClientId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown client"));
+        ClientEntity newClient = null;
+        BillingService service = null;
+        if (dto.requestType() == ServiceRequestType.OWNER_CHANGE) {
+            validateOwnerChangeDate(dto.serviceDate());
+            if (dto.newClientId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose new owner");
+            }
+            newClient = clientRepository.findById(dto.newClientId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown client"));
+        } else {
+            if (dto.serviceId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose service");
+            }
+            service = billingServiceRepository.findById(dto.serviceId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown service"));
+        }
 
         List<Long> requestedContainerIds = uniqueIds(dto.containerIds());
         if (requestedContainerIds.isEmpty()) {
@@ -144,7 +162,7 @@ public class ContainerOwnerService {
                     "Current owner was not found for container " + container.getNumber()
                 );
             }
-            if (activeOwner.getClient().getId().equals(newClient.getId())) {
+            if (dto.requestType() == ServiceRequestType.OWNER_CHANGE && activeOwner.getClient().getId().equals(newClient.getId())) {
                 throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Container " + container.getNumber() + " already belongs to the selected client"
@@ -154,6 +172,8 @@ public class ContainerOwnerService {
 
         ContainerOwnerChangeOrder order = new ContainerOwnerChangeOrder();
         order.setNumber(nextChangeOrderNumber());
+        order.setRequestType(dto.requestType());
+        order.setService(service);
         order.setServiceDate(dto.serviceDate());
         order.setNewClient(newClient);
         order.setStatus(ContainerOwnerChangeOrderStatus.COMPLETED);
@@ -162,20 +182,33 @@ public class ContainerOwnerService {
         requestedContainerIds.forEach(containerId -> order.addContainer(containersById.get(containerId)));
 
         ContainerOwnerChangeOrder saved = changeOrderRepository.saveAndFlush(order);
-        applyOwnerChange(saved, startOfDay(saved.getServiceDate()));
+        if (saved.getRequestType() == ServiceRequestType.OWNER_CHANGE) {
+            applyOwnerChange(saved, startOfDay(saved.getServiceDate()));
+        } else {
+            createServiceExecutions(saved);
+        }
         return saved;
     }
 
     @Transactional
     public ContainerOwnerChangeOrder completeChangeOrder(Long id) {
         ContainerOwnerChangeOrder order = loadChangeOrder(id);
-        validateOwnerChangeDate(order.getServiceDate());
+        if (order.getRequestType() == ServiceRequestType.OWNER_CHANGE) {
+            validateOwnerChangeDate(order.getServiceDate());
+        }
 
         if (order.getStatus() != ContainerOwnerChangeOrderStatus.DRAFT) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only draft owner change orders can be completed");
         }
         if (order.getContainers().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose at least one container");
+        }
+        if (order.getRequestType() == ServiceRequestType.SERVICE) {
+            createServiceExecutions(order);
+            order.setStatus(ContainerOwnerChangeOrderStatus.COMPLETED);
+            order.setCompletedAt(startOfDay(order.getServiceDate()));
+            order.setCompletedBy(currentUser());
+            return changeOrderRepository.save(order);
         }
 
         OffsetDateTime now = startOfDay(order.getServiceDate());
@@ -221,6 +254,25 @@ public class ContainerOwnerService {
         order.setCompletedAt(now);
         order.setCompletedBy(currentUser());
         return changeOrderRepository.save(order);
+    }
+
+    private void createServiceExecutions(ContainerOwnerChangeOrder order) {
+        if (order.getService() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose service");
+        }
+
+        for (ContainerOwnerChangeOrderContainer link : order.getContainers()) {
+            ContainerOwnerHistory active = historyRepository
+                .findByContainerIdAndValidToIsNull(link.getContainer().getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Current owner was not found for container " + link.getContainer().getNumber()
+                ));
+            serviceExecutionService.createForServiceRequest(order, link, active.getClient(), order.getService());
+        }
+
+        order.setCompletedAt(startOfDay(order.getServiceDate()));
+        order.setCompletedBy(currentUser());
     }
 
     @Transactional

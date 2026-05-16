@@ -8,8 +8,10 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record CreateContainerOwnerChangeOrderDto(
+    @NotNull ServiceRequestType requestType,
+    Long serviceId,
     @NotNull LocalDate serviceDate,
-    @NotNull Long newClientId,
+    Long newClientId,
     @Size(max = 2000) String comment,
     @NotEmpty List<@NotNull Long> containerIds
 ) {

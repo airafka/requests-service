@@ -132,6 +132,44 @@ public class ServiceExecutionService {
         });
     }
 
+    @Transactional
+    public List<ServiceExecution> createForServiceRequest(
+        ContainerOwnerChangeOrder order,
+        ContainerOwnerChangeOrderContainer link,
+        ClientEntity client,
+        BillingService service
+    ) {
+        if (executionRepository.existsBySourceTypeAndBasisTypeAndBasisIdAndServiceIdAndContainerId(
+            ServiceExecutionSourceType.MANUAL,
+            ServiceExecutionBasisType.SERVICE_REQUEST,
+            order.getId(),
+            service.getId(),
+            link.getContainer().getId()
+        )) {
+            return List.of();
+        }
+
+        ServiceExecution execution = new ServiceExecution();
+        execution.setClient(client);
+        execution.setContainer(link.getContainer());
+        execution.setContainerNumber(link.getContainer().getNumber());
+        execution.setService(service);
+        execution.setExecutionType(service.getServiceType() == BillingServiceType.CONTINUOUS
+            ? ServiceExecutionType.CONTINUOUS
+            : ServiceExecutionType.ONE_TIME);
+        execution.setDateFrom(order.getServiceDate());
+        execution.setDateTo(order.getServiceDate());
+        execution.setQuantity(1);
+        execution.setUnit(service.getServiceType() == BillingServiceType.CONTINUOUS ? "сутки" : "операция");
+        execution.setSourceType(ServiceExecutionSourceType.MANUAL);
+        execution.setBasisType(ServiceExecutionBasisType.SERVICE_REQUEST);
+        execution.setBasisId(order.getId());
+        execution.setStatus(ServiceExecutionStatus.CONFIRMED);
+        ServiceExecution saved = executionRepository.saveAndFlush(execution);
+        addSource(saved, ServiceExecutionFactSourceType.SERVICE_REQUEST, order.getId());
+        return List.of(saved);
+    }
+
     private List<ServiceExecution> createForTosEvent(
         TosOperationFact fact,
         ClientEntity client,

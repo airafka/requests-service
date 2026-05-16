@@ -115,8 +115,10 @@ type ShippingOrder = {
 type OwnerChangeOrder = {
   id: number;
   number: string;
+  requestType: "OWNER_CHANGE" | "SERVICE";
+  service: BillingService | null;
   serviceDate: string;
-  newClient: Client;
+  newClient: Client | null;
   comment: string | null;
   createdAt: string;
   createdBy: string | null;
@@ -255,8 +257,9 @@ type ServiceExecutionBasisType =
   | "RECEIVING_ORDER"
   | "SHIPPING_ORDER"
   | "OWNER_CHANGE_ORDER"
+  | "SERVICE_REQUEST"
   | "SYSTEM";
-type ServiceExecutionFactSourceType = "TOS_OPERATION_FACT" | "STORAGE_DAILY_ACCRUAL" | "STORAGE_PERIOD" | "SYSTEM";
+type ServiceExecutionFactSourceType = "TOS_OPERATION_FACT" | "STORAGE_DAILY_ACCRUAL" | "STORAGE_PERIOD" | "SERVICE_REQUEST" | "SYSTEM";
 
 type ServiceExecutionSource = {
   id: number;
@@ -383,6 +386,8 @@ function App() {
   const [shippingContainers, setShippingContainers] = React.useState<string[]>([]);
   const [billingDate, setBillingDate] = React.useState(todayLocalDate());
   const [ownerServiceDate, setOwnerServiceDate] = React.useState(todayLocalDate());
+  const [ownerRequestType, setOwnerRequestType] = React.useState<"OWNER_CHANGE" | "SERVICE">("OWNER_CHANGE");
+  const [ownerServiceId, setOwnerServiceId] = React.useState("");
   const [ownerClientId, setOwnerClientId] = React.useState("");
   const [ownerComment, setOwnerComment] = React.useState("");
   const [ownerContainers, setOwnerContainers] = React.useState<number[]>([]);
@@ -829,8 +834,12 @@ function App() {
       return;
     }
 
-    if (!ownerClientId) {
+    if (ownerRequestType === "OWNER_CHANGE" && !ownerClientId) {
       setError("Выберите нового владельца");
+      return;
+    }
+    if (ownerRequestType === "SERVICE" && !ownerServiceId) {
+      setError("Выберите услугу");
       return;
     }
 
@@ -843,8 +852,10 @@ function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        requestType: ownerRequestType,
+        serviceId: ownerRequestType === "SERVICE" ? Number(ownerServiceId) : null,
         serviceDate: ownerServiceDate,
-        newClientId: Number(ownerClientId),
+        newClientId: ownerRequestType === "OWNER_CHANGE" ? Number(ownerClientId) : null,
         comment: ownerComment,
         containerIds: ownerContainers,
       }),
@@ -856,12 +867,16 @@ function App() {
     }
 
     const createdOrder: OwnerChangeOrder = await response.json();
-    await rollbackStorageAfterDate(billingDate);
-    if (!isDateBefore(billingDate, ownerServiceDate)) {
-      for (const accrualDate of datesBetweenInclusive(ownerServiceDate, billingDate)) {
-        await accrueStorageForDate(accrualDate, false);
+    if (ownerRequestType === "OWNER_CHANGE") {
+      await rollbackStorageAfterDate(billingDate);
+      if (!isDateBefore(billingDate, ownerServiceDate)) {
+        for (const accrualDate of datesBetweenInclusive(ownerServiceDate, billingDate)) {
+          await accrueStorageForDate(accrualDate, false);
+        }
       }
     }
+    setOwnerRequestType("OWNER_CHANGE");
+    setOwnerServiceId("");
     setOwnerServiceDate(todayLocalDate());
     setOwnerClientId("");
     setOwnerComment("");
@@ -1399,7 +1414,7 @@ function App() {
                 onClick={() => setPage("owner-list")}
               >
                 <Repeat2 size={18} />
-                <span>Смена владельца</span>
+                <span>Заявки на услугу</span>
               </button>
             </div>
           </details>
@@ -1773,13 +1788,22 @@ function App() {
         {page === "owner-create" && (
           <CreateOwnerChangeOrderPage
             clients={clients}
+            services={billingServices}
             currentOwners={currentContainerOwners}
+            requestType={ownerRequestType}
+            serviceId={ownerServiceId}
             serviceDate={ownerServiceDate}
             clientId={ownerClientId}
             comment={ownerComment}
             selectedContainers={ownerContainers}
             onBack={() => setPage("owner-list")}
             onSubmit={createOwnerChangeOrder}
+            onRequestTypeChange={(value) => {
+              setOwnerRequestType(value);
+              setOwnerServiceId("");
+              setOwnerClientId("");
+            }}
+            onServiceChange={setOwnerServiceId}
             onServiceDateChange={setOwnerServiceDate}
             onClientChange={setOwnerClientId}
             onCommentChange={setOwnerComment}
@@ -2297,7 +2321,7 @@ function OwnerChangeOrdersListPage({
 }) {
   return (
     <>
-      <PageHead title="Заявки на смену владельца">
+      <PageHead title="Заявки на услугу">
         <BaseButton buttonType={ButtonType.default} onClick={onCreate}>
           Создать
         </BaseButton>
@@ -2305,16 +2329,17 @@ function OwnerChangeOrdersListPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Номер заявки", "Новый владелец", "КТК", "Дата начала владения"]}>
+          <OrdersTable columns={["Номер заявки", "Тип", "Услуга / новый владелец", "КТК", "Дата"]}>
             {orders.map((order) => (
               <tr className="clickable-row" key={order.id} onClick={() => onOpen(order)}>
                 <td>{order.number}</td>
-                <td>{order.newClient.name}</td>
+                <td>{serviceRequestTypeLabel(order.requestType)}</td>
+                <td>{order.requestType === "OWNER_CHANGE" ? order.newClient?.name ?? "-" : order.service?.name ?? "-"}</td>
                 <td>{order.containers.map((container) => container.number).join(", ")}</td>
                 <td>{formatDate(order.serviceDate)}</td>
               </tr>
             ))}
-            {orders.length === 0 && <EmptyRow colSpan={4} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
+            {orders.length === 0 && <EmptyRow colSpan={5} text={isLoading ? "Загрузка..." : "Заявок пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -3012,13 +3037,18 @@ function CreateShippingOrderPage(props: {
 
 function CreateOwnerChangeOrderPage(props: {
   clients: Client[];
+  services: BillingService[];
   currentOwners: CurrentContainerOwner[];
+  requestType: "OWNER_CHANGE" | "SERVICE";
+  serviceId: string;
   serviceDate: string;
   clientId: string;
   comment: string;
   selectedContainers: number[];
   onBack: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onRequestTypeChange: (value: "OWNER_CHANGE" | "SERVICE") => void;
+  onServiceChange: (value: string) => void;
   onServiceDateChange: (value: string) => void;
   onClientChange: (value: string) => void;
   onCommentChange: (value: string) => void;
@@ -3028,10 +3058,16 @@ function CreateOwnerChangeOrderPage(props: {
     value: owner.container.id,
     label: `${owner.container.number} - ${owner.client.name}`,
   }));
+  const serviceOptions = props.services
+    .filter((service) => service.serviceType === "ONE_TIME")
+    .map((service) => ({
+      value: service.id,
+      label: service.name,
+    }));
 
   return (
     <>
-      <PageHead title="Создание заявки на смену владельца">
+      <PageHead title="Создание заявки на услугу">
         <UikitBackButton onClick={props.onBack} />
       </PageHead>
 
@@ -3039,17 +3075,38 @@ function CreateOwnerChangeOrderPage(props: {
         <PageCard>
           <form className="uikit-form create-page-form" onSubmit={props.onSubmit}>
             <h2>Данные заявки</h2>
+            <Select
+              label="Тип заявки"
+              placeholder=" "
+              value={props.requestType}
+              options={[
+                { value: "OWNER_CHANGE", label: "Смена владельца" },
+                { value: "SERVICE", label: "Оказание услуги" },
+              ]}
+              onChange={(value) => props.onRequestTypeChange((value as "OWNER_CHANGE" | "SERVICE") ?? "OWNER_CHANGE")}
+            />
+            {props.requestType === "SERVICE" && (
+              <Select
+                label="Услуга"
+                placeholder=" "
+                value={props.serviceId ? Number(props.serviceId) : undefined}
+                options={serviceOptions}
+                onChange={(value) => props.onServiceChange(value ? String(value) : "")}
+              />
+            )}
             <label>
-              Дата начала владения
+              {props.requestType === "OWNER_CHANGE" ? "Дата начала владения" : "Дата оказания услуги"}
               <input type="date" value={props.serviceDate} onChange={(event) => props.onServiceDateChange(event.target.value)} />
             </label>
-            <Select
-              label="Новый владелец"
-              placeholder=" "
-              value={props.clientId ? Number(props.clientId) : undefined}
-              options={props.clients.map((client) => ({ value: client.id, label: client.name }))}
-              onChange={(value) => props.onClientChange(value ? String(value) : "")}
-            />
+            {props.requestType === "OWNER_CHANGE" && (
+              <Select
+                label="Новый владелец"
+                placeholder=" "
+                value={props.clientId ? Number(props.clientId) : undefined}
+                options={props.clients.map((client) => ({ value: client.id, label: client.name }))}
+                onChange={(value) => props.onClientChange(value ? String(value) : "")}
+              />
+            )}
             <label>
               Комментарий
               <textarea value={props.comment} onChange={(event) => props.onCommentChange(event.target.value)} rows={4} />
@@ -3730,7 +3787,7 @@ function OwnerChangeOrderDetailsPage({
 
   return (
     <>
-      <PageHead title={`Заявка на смену владельца ${order.number}`}>
+      <PageHead title={`Заявка на услугу ${order.number}`}>
         <div className="head-actions">
           <BackButton onClick={onBack} />
           <button className="design-button" type="button" onClick={onCreate}>
@@ -3742,8 +3799,10 @@ function OwnerChangeOrderDetailsPage({
       <section className="details-panel">
         <div className="detail-grid">
           <DetailItem label="Номер заявки" value={order.number} />
-          <DetailItem label="Дата начала владения" value={formatDate(order.serviceDate)} />
-          <DetailItem label="Новый владелец" value={order.newClient.name} />
+          <DetailItem label="Тип" value={serviceRequestTypeLabel(order.requestType)} />
+          <DetailItem label={order.requestType === "OWNER_CHANGE" ? "Дата начала владения" : "Дата оказания услуги"} value={formatDate(order.serviceDate)} />
+          {order.requestType === "OWNER_CHANGE" && <DetailItem label="Новый владелец" value={order.newClient?.name ?? "-"} />}
+          {order.requestType === "SERVICE" && <DetailItem label="Услуга" value={order.service?.name ?? "-"} />}
           <DetailItem label="Дата создания" value={formatDateTime(order.createdAt)} />
           <DetailItem label="Комментарий" value={order.comment || "-"} />
         </div>
@@ -4206,6 +4265,15 @@ function billingAccrualStatusLabel(status: BillingAccrualStatus) {
       return "Рассчитано";
     case "CANCELLED":
       return "Отменено";
+  }
+}
+
+function serviceRequestTypeLabel(type: OwnerChangeOrder["requestType"]) {
+  switch (type) {
+    case "OWNER_CHANGE":
+      return "Смена владельца";
+    case "SERVICE":
+      return "Оказание услуги";
   }
 }
 
