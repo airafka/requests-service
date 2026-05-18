@@ -1823,7 +1823,6 @@ function App() {
           <ContainerOwnerDetailsPage
             container={selectedOwnerContainer}
             history={selectedOwnerHistory}
-            storagePeriods={storagePeriods}
             onBack={() => setPage("containers-list")}
             onOpenSource={openSource}
           />
@@ -2842,20 +2841,17 @@ function CreateComplexServicePage({
 function ContainerOwnerDetailsPage({
   container,
   history,
-  storagePeriods,
   onBack,
   onOpenSource,
 }: {
   container: Container | null;
   history: ContainerOwnerHistory[];
-  storagePeriods: ContainerStoragePeriod[];
   onBack: () => void;
   onOpenSource: (history: ContainerOwnerHistory) => void;
 }) {
   if (!container) {
     return <NotSelected title="КТК не выбран" onBack={onBack} />;
   }
-  const containerStoragePeriods = storagePeriods.filter((period) => period.containerId === container.id);
 
   return (
     <>
@@ -2865,31 +2861,25 @@ function ContainerOwnerDetailsPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Владелец", "Операция", "Заявка", "Дата начала", "Дата окончания", "Дней хранения"]}>
-            {history.map((item) => {
-              const storagePeriod = storagePeriodForOwnerHistory(item, containerStoragePeriods);
-              const isStorageOperation = item.operationType !== "SHIPPING";
-
-              return (
-                <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
-                  <td>{item.client.name}</td>
-                  <td>{operationLabel(item.operationType)}</td>
-                  <td>
-                    {item.sourceOrderId ? (
-                      <button className="table-link" type="button" onClick={() => onOpenSource(item)}>
-                        {operationLabel(item.operationType)} №{item.sourceNumber ?? item.sourceOrderId}
-                      </button>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td>{formatDate(storagePeriod?.dateFrom ?? datePart(item.validFrom))}</td>
-                  <td>{storagePeriod?.dateTo ? formatDate(storagePeriod.dateTo) : item.validTo ? formatDate(datePart(item.validTo)) : ""}</td>
-                  <td>{isStorageOperation ? storagePeriod?.storageDays ?? "-" : "-"}</td>
-                </tr>
-              );
-            })}
-            {history.length === 0 && <EmptyRow colSpan={6} text="Истории КТК пока нет" />}
+          <OrdersTable columns={["Клиент", "Событие", "Заявка", "Дата", "Дата начала"]}>
+            {history.map((item) => (
+              <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
+                <td>{item.client.name}</td>
+                <td>{operationLabel(item.operationType)}</td>
+                <td>
+                  {item.sourceOrderId ? (
+                    <button className="table-link" type="button" onClick={() => onOpenSource(item)}>
+                      {operationLabel(item.operationType)} №{item.sourceNumber ?? item.sourceOrderId}
+                    </button>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+                <td>{formatDateTime(item.validFrom)}</td>
+                <td>{item.operationType === "OWNER_CHANGE" ? formatDate(datePart(item.validFrom)) : "-"}</td>
+              </tr>
+            ))}
+            {history.length === 0 && <EmptyRow colSpan={5} text="Истории КТК пока нет" />}
           </OrdersTable>
         </PageCard>
       </div>
