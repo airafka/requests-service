@@ -2861,7 +2861,7 @@ function ContainerOwnerDetailsPage({
 
       <div className="uikit-table-card">
         <PageCard>
-          <OrdersTable columns={["Клиент", "Событие", "Заявка", "Дата операции", "Дата начала"]}>
+          <OrdersTable columns={["Клиент", "Событие", "Заявка", "Дата события", "Дата начала"]}>
             {history.map((item) => (
               <tr key={`${item.operationType}-${item.sourceId}-${item.validFrom}`}>
                 <td>{item.client.name}</td>
@@ -2875,7 +2875,7 @@ function ContainerOwnerDetailsPage({
                     "-"
                   )}
                 </td>
-                <td>{formatDateTime(item.validFrom)}</td>
+                <td>{formatDateTime(item.operationType === "OWNER_CHANGE" ? item.createdAt : item.validFrom)}</td>
                 <td>{item.operationType === "OWNER_CHANGE" ? formatDate(datePart(item.validFrom)) : "-"}</td>
               </tr>
             ))}
