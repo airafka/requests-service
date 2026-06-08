@@ -3,8 +3,9 @@ package com.example.requests.receiving;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.EnumSet;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.EnumSet;
 import java.util.List;
 
 @Service
@@ -13,7 +14,6 @@ public class ServiceExecutionService {
     private final ServiceExecutionSourceRepository sourceRepository;
     private final BillingServiceRepository billingServiceRepository;
     private final TosOperationFactRepository tosOperationFactRepository;
-    private final ContainerStorageDailyAccrualRepository storageAccrualRepository;
     private final ContainerOwnerHistoryRepository ownerHistoryRepository;
 
     public ServiceExecutionService(
@@ -21,14 +21,12 @@ public class ServiceExecutionService {
         ServiceExecutionSourceRepository sourceRepository,
         BillingServiceRepository billingServiceRepository,
         TosOperationFactRepository tosOperationFactRepository,
-        ContainerStorageDailyAccrualRepository storageAccrualRepository,
         ContainerOwnerHistoryRepository ownerHistoryRepository
     ) {
         this.executionRepository = executionRepository;
         this.sourceRepository = sourceRepository;
         this.billingServiceRepository = billingServiceRepository;
         this.tosOperationFactRepository = tosOperationFactRepository;
-        this.storageAccrualRepository = storageAccrualRepository;
         this.ownerHistoryRepository = ownerHistoryRepository;
     }
 
@@ -38,14 +36,6 @@ public class ServiceExecutionService {
             .findByStatusInOrderByOperationTimeAscIdAsc(EnumSet.of(TosOperationFactStatus.RECEIVED, TosOperationFactStatus.PROCESSED))
             .stream()
             .flatMap(fact -> processTosEvent(fact).stream())
-            .toList();
-    }
-
-    @Transactional
-    public List<ServiceExecution> processStorageAccruals() {
-        return storageAccrualRepository.findByStatusOrderByAccrualDateAscIdAsc(ContainerStorageDailyAccrualStatus.ACCRUED).stream()
-            .map(this::createForStorageAccrual)
-            .flatMap(List::stream)
             .toList();
     }
 
@@ -81,55 +71,38 @@ public class ServiceExecutionService {
     }
 
     @Transactional
-    public List<ServiceExecution> createForStorageAccrual(ContainerStorageDailyAccrual accrual) {
-        if (accrual.getService() == null || accrual.getStatus() != ContainerStorageDailyAccrualStatus.ACCRUED) {
-            return List.of();
+    public ServiceExecution createOrUpdateForStoragePeriod(ContainerStoragePeriod period, LocalDate asOfDate) {
+        if (period.getService() == null) {
+            return null;
         }
 
-        if (executionRepository.existsBySourceTypeAndBasisTypeAndBasisIdAndServiceIdAndContainerId(
-            ServiceExecutionSourceType.SYSTEM,
-            ServiceExecutionBasisType.STORAGE_DAILY_ACCRUAL,
-            accrual.getId(),
-            accrual.getService().getId(),
-            accrual.getContainer().getId()
-        )) {
-            return List.of();
-        }
+        ServiceExecution execution = executionRepository
+            .findBySourceTypeAndBasisTypeAndBasisIdAndServiceIdAndContainerId(
+                ServiceExecutionSourceType.SYSTEM,
+                ServiceExecutionBasisType.STORAGE_PERIOD,
+                period.getId(),
+                period.getService().getId(),
+                period.getContainer().getId()
+            )
+            .orElseGet(ServiceExecution::new);
 
-        ServiceExecution execution = new ServiceExecution();
-        execution.setClient(accrual.getClient());
-        execution.setContainer(accrual.getContainer());
-        execution.setContainerNumber(accrual.getContainerNumber());
-        execution.setService(accrual.getService());
+        execution.setClient(period.getClient());
+        execution.setContainer(period.getContainer());
+        execution.setContainerNumber(period.getContainerNumber());
+        execution.setService(period.getService());
         execution.setExecutionType(ServiceExecutionType.CONTINUOUS);
-        execution.setDateFrom(accrual.getAccrualDate());
-        execution.setDateTo(accrual.getAccrualDate());
-        execution.setQuantity(accrual.getQuantity() == null ? 1 : accrual.getQuantity());
+        execution.setDateFrom(period.getDateFrom());
+        execution.setDateTo(period.getDateTo());
+        execution.setQuantity(storageQuantity(period, asOfDate));
         execution.setUnit("сутки");
         execution.setSourceType(ServiceExecutionSourceType.SYSTEM);
-        execution.setBasisType(ServiceExecutionBasisType.STORAGE_DAILY_ACCRUAL);
-        execution.setBasisId(accrual.getId());
+        execution.setBasisType(ServiceExecutionBasisType.STORAGE_PERIOD);
+        execution.setBasisId(period.getId());
         execution.setStatus(ServiceExecutionStatus.CONFIRMED);
-        ServiceExecution saved = executionRepository.saveAndFlush(execution);
-        addSource(saved, ServiceExecutionFactSourceType.STORAGE_DAILY_ACCRUAL, accrual.getId());
-        return List.of(saved);
-    }
 
-    @Transactional
-    public void cancelForStorageAccrual(ContainerStorageDailyAccrual accrual) {
-        if (accrual.getService() == null) {
-            return;
-        }
-        executionRepository.findBySourceTypeAndBasisTypeAndBasisIdAndServiceIdAndContainerId(
-            ServiceExecutionSourceType.SYSTEM,
-            ServiceExecutionBasisType.STORAGE_DAILY_ACCRUAL,
-            accrual.getId(),
-            accrual.getService().getId(),
-            accrual.getContainer().getId()
-        ).ifPresent(execution -> {
-            execution.setStatus(ServiceExecutionStatus.CANCELLED);
-            executionRepository.save(execution);
-        });
+        ServiceExecution saved = executionRepository.saveAndFlush(execution);
+        addSource(saved, ServiceExecutionFactSourceType.STORAGE_PERIOD, period.getId());
+        return saved;
     }
 
     @Transactional
@@ -234,5 +207,16 @@ public class ServiceExecutionService {
                 .orElse(null);
         }
         return null;
+    }
+
+    private int storageQuantity(ContainerStoragePeriod period, LocalDate asOfDate) {
+        LocalDate dateToExclusive = period.getDateTo();
+        if (dateToExclusive == null && asOfDate != null && !asOfDate.isBefore(period.getDateFrom())) {
+            dateToExclusive = asOfDate.plusDays(1);
+        }
+        if (dateToExclusive == null || !dateToExclusive.isAfter(period.getDateFrom())) {
+            return 0;
+        }
+        return Math.toIntExact(ChronoUnit.DAYS.between(period.getDateFrom(), dateToExclusive));
     }
 }

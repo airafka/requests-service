@@ -8,12 +8,12 @@ public record ServiceExecutionSourceResponse(
     Long sourceId,
     OffsetDateTime createdAt,
     TosOperationFactResponse tosOperationFact,
-    ContainerStorageDailyAccrualResponse storageDailyAccrual
+    ContainerStoragePeriodResponse storagePeriod
 ) {
     public static ServiceExecutionSourceResponse fromEntity(
         ServiceExecutionSource source,
         TosOperationFact tosOperationFact,
-        ContainerStorageDailyAccrual storageDailyAccrual
+        ContainerStoragePeriod storagePeriod
     ) {
         return new ServiceExecutionSourceResponse(
             source.getId(),
@@ -21,7 +21,7 @@ public record ServiceExecutionSourceResponse(
             source.getSourceId(),
             source.getCreatedAt(),
             tosOperationFact == null ? null : TosOperationFactResponse.fromEntity(tosOperationFact),
-            storageDailyAccrual == null ? null : ContainerStorageDailyAccrualResponse.fromEntity(storageDailyAccrual)
+            storagePeriod == null ? null : ContainerStoragePeriodResponse.fromEntity(storagePeriod)
         );
     }
 }

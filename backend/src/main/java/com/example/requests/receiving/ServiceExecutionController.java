@@ -18,18 +18,18 @@ public class ServiceExecutionController {
     private final ServiceExecutionRepository executionRepository;
     private final ServiceExecutionService executionService;
     private final TosOperationFactRepository tosOperationFactRepository;
-    private final ContainerStorageDailyAccrualRepository storageAccrualRepository;
+    private final ContainerStoragePeriodRepository storagePeriodRepository;
 
     public ServiceExecutionController(
         ServiceExecutionRepository executionRepository,
         ServiceExecutionService executionService,
         TosOperationFactRepository tosOperationFactRepository,
-        ContainerStorageDailyAccrualRepository storageAccrualRepository
+        ContainerStoragePeriodRepository storagePeriodRepository
     ) {
         this.executionRepository = executionRepository;
         this.executionService = executionService;
         this.tosOperationFactRepository = tosOperationFactRepository;
-        this.storageAccrualRepository = storageAccrualRepository;
+        this.storagePeriodRepository = storagePeriodRepository;
     }
 
     @GetMapping
@@ -52,8 +52,8 @@ public class ServiceExecutionController {
                 source.getSourceType() == ServiceExecutionFactSourceType.TOS_OPERATION_FACT
                     ? tosOperationFactRepository.findById(source.getSourceId()).orElse(null)
                     : null,
-                source.getSourceType() == ServiceExecutionFactSourceType.STORAGE_DAILY_ACCRUAL
-                    ? storageAccrualRepository.findById(source.getSourceId()).orElse(null)
+                source.getSourceType() == ServiceExecutionFactSourceType.STORAGE_PERIOD
+                    ? storagePeriodRepository.findById(source.getSourceId()).orElse(null)
                     : null
             ))
             .toList();
@@ -70,12 +70,4 @@ public class ServiceExecutionController {
             .toList();
     }
 
-    @PostMapping("/process-storage-accruals")
-    @Transactional
-    @ResponseStatus(HttpStatus.CREATED)
-    public List<ServiceExecutionResponse> processStorageAccruals() {
-        return executionService.processStorageAccruals().stream()
-            .map(ServiceExecutionResponse::fromEntity)
-            .toList();
-    }
 }

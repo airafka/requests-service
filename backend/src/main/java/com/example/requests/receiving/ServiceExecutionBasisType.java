@@ -2,7 +2,7 @@ package com.example.requests.receiving;
 
 public enum ServiceExecutionBasisType {
     TOS_OPERATION_FACT,
-    STORAGE_DAILY_ACCRUAL,
+    STORAGE_PERIOD,
     CONTAINER_STORAGE_PERIOD,
     RECEIVING_ORDER,
     SHIPPING_ORDER,

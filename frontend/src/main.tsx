@@ -1,8 +1,7 @@
-﻿import React from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
 import { BaseButton, ButtonType, PageCard, Select, SelectMulti, UikitProvider } from "@alabuga/uikit";
 import {
-  ArrowLeft,
   Box,
   Calculator,
   CalendarDays,
@@ -16,333 +15,92 @@ import {
   Repeat2,
   Truck,
 } from "lucide-react";
+import { API_BASE, errorText } from "./api";
+import {
+  BackButton,
+  ClientSelect,
+  ContainerChips,
+  ContainerDropdown,
+  DetailItem,
+  EmptyRow,
+  NotSelected,
+  OrdersTable,
+  PageHead,
+  ShippingStatusBadge,
+  StatusBadge,
+  SubmitButton,
+  TosStatusBadge,
+  UikitBackButton,
+} from "./common-ui";
+import {
+  basisLabel,
+  billingAccrualStatusLabel,
+  billingClientSummaries,
+  billingOrderSummaries,
+  billingPeriodStatusLabel,
+  billingRows,
+  billingServiceSummaries,
+  calculateComplexServiceAmount,
+  complexServiceItemValue,
+  continuousComplexServiceItems,
+  datePart,
+  formatCoefficient,
+  formatDate,
+  formatDateTime,
+  formatMoney,
+  formatQuantity,
+  oneTimeComplexServiceItems,
+  operationLabel,
+  rawPayloadText,
+  receivingOrderContainerStatusLabel,
+  receivingOrderStatusLabel,
+  serviceExecutionPeriodLabel,
+  serviceExecutionSourceDetails,
+  serviceExecutionStatusLabel,
+  serviceExecutionTypeLabel,
+  serviceRequestTypeLabel,
+  serviceTypeLabel,
+  shippingOrderContainerStatusLabel,
+  shippingOrderStatusLabel,
+  storagePeriodForOwnerHistory,
+  storageDaysForPeriod,
+  storagePeriodStatusLabel,
+  storageSourceTypeLabel,
+  todayLocalDate,
+  tosFactStatusLabel,
+  tosOrderStatusLabel,
+} from "./domain-logic";
+import type {
+  BillingAccrual,
+  BillingOperation,
+  BillingPeriod,
+  BillingService,
+  BillingServiceExecution,
+  BillingServiceType,
+  Client,
+  ComplexService,
+  ComplexServiceFormItem,
+  ComplexServiceItem,
+  Container,
+  ContainerOwnerHistory,
+  ContainerStoragePeriod,
+  CurrentContainerOwner,
+  OwnerChangeOrder,
+  Page,
+  ReceivingOrder,
+  ReceivingOrderContainerStatus,
+  ReceivingOrderStatus,
+  ServiceExecution,
+  ServiceExecutionBasisType,
+  ServiceExecutionStatus,
+  ServiceExecutionType,
+  ShippingOrder,
+  ShippingOrderContainerStatus,
+  ShippingOrderStatus,
+  TosOperationFact,
+} from "./domain";
 import "./styles.css";
 
-type Page =
-  | "receiving-list"
-  | "receiving-create"
-  | "receiving-details"
-  | "tos-list"
-  | "tos-receiving-details"
-  | "tos-shipping-details"
-  | "tos-facts"
-  | "billing-clients"
-  | "billing-client-details"
-  | "billing-order-details"
-  | "billing-periods"
-  | "billing-period-create"
-  | "billing-period-details"
-  | "billing-accruals"
-  | "billing-accrual-details"
-  | "storage-periods"
-  | "storage-accruals"
-  | "service-executions"
-  | "service-execution-details"
-  | "shipping-list"
-  | "shipping-create"
-  | "shipping-details"
-  | "owner-list"
-  | "owner-create"
-  | "owner-details"
-  | "container-owner-details"
-  | "containers-list"
-  | "containers-create"
-  | "operations-list"
-  | "operations-create"
-  | "operations-edit"
-  | "services-list"
-  | "services-create"
-  | "services-edit"
-  | "complex-services-list"
-  | "complex-services-create"
-  | "complex-services-edit";
-
-type Client = {
-  id: number;
-  name: string;
-};
-
-type Container = {
-  id: number;
-  number: string;
-};
-
-type ReceivingOrderStatus = "DRAFT" | "CONFIRMED" | "COMPLETED";
-type ReceivingOrderContainerStatus = "IN_PROGRESS" | "FINISHED";
-
-type ReceivingOrderContainer = {
-  id: number;
-  status: ReceivingOrderContainerStatus;
-  finishedAt: string | null;
-  container: Container;
-  serviceExecutions: BillingServiceExecution[];
-};
-
-type ReceivingOrder = {
-  id: number;
-  number: string;
-  client: Client;
-  complexService: ComplexService | null;
-  createdAt: string;
-  plannedReceivingDate: string;
-  actualReceivingDate: string | null;
-  status: ReceivingOrderStatus;
-  containers: ReceivingOrderContainer[];
-};
-
-type ShippingOrderStatus = "CONFIRMED" | "COMPLETED";
-type ShippingOrderContainerStatus = "IN_PROGRESS" | "FINISHED";
-
-type ShippingOrderContainer = {
-  id: number;
-  status: ShippingOrderContainerStatus;
-  finishedAt: string | null;
-  container: Container;
-};
-
-type ShippingOrder = {
-  id: number;
-  number: string;
-  client: Client;
-  createdAt: string;
-  plannedShippingDate: string;
-  actualShippingDate: string | null;
-  status: ShippingOrderStatus;
-  completedAt: string | null;
-  containers: ShippingOrderContainer[];
-};
-
-type OwnerChangeOrder = {
-  id: number;
-  number: string;
-  requestType: "OWNER_CHANGE" | "SERVICE";
-  service: BillingService | null;
-  serviceDate: string;
-  newClient: Client | null;
-  comment: string | null;
-  createdAt: string;
-  createdBy: string | null;
-  completedAt: string | null;
-  completedBy: string | null;
-  containers: Container[];
-};
-
-type ContainerOwnerHistory = {
-  id: number;
-  containerId: number;
-  client: Client;
-  operationType: "RECEIVING" | "SHIPPING" | "OWNER_CHANGE";
-  sourceId: number;
-  sourceOrderId: number | null;
-  sourceNumber: string | null;
-  sourceLabel: string | null;
-  validFrom: string;
-  validTo: string | null;
-  storageDays: number;
-  createdAt: string;
-  createdBy: string | null;
-};
-
-type CurrentContainerOwner = {
-  container: Container;
-  client: Client;
-  validFrom: string;
-  operationType: ContainerOwnerHistory["operationType"];
-  sourceId: number;
-  storageDays: number;
-};
-
-type BillingOperation = {
-  id: number;
-  name: string;
-};
-
-type BillingServiceType = "ONE_TIME" | "CONTINUOUS";
-
-type BillingService = {
-  id: number;
-  name: string;
-  serviceType: BillingServiceType;
-  cost: number;
-  operations: BillingOperation[];
-};
-
-type ComplexServiceItem = {
-  id: number;
-  service: BillingService;
-  operationCount: number | null;
-  durationDays: number | null;
-};
-
-type ComplexService = {
-  id: number;
-  name: string;
-  coefficient: number;
-  amountPerContainer: number;
-  items: ComplexServiceItem[];
-};
-
-type BillingServiceExecution = {
-  id: number;
-  service: BillingService;
-  quantity: number;
-  amount: number;
-  source: "TOS" | "SYSTEM";
-  performedAt: string;
-};
-
-type TosOperationFact = {
-  id: number;
-  externalId: string | null;
-  operationId: number | null;
-  operationName: string | null;
-  operationCode: string;
-  containerId: number | null;
-  containerNumber: string;
-  receivingOrderId: number | null;
-  shippingOrderId: number | null;
-  operationTime: string;
-  quantity: number;
-  status: "RECEIVED" | "PROCESSED" | "ERROR" | "CANCELLED";
-  sourceSystem: string;
-  rawPayload: unknown;
-  errorMessage: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type ContainerStoragePeriod = {
-  id: number;
-  containerId: number;
-  containerNumber: string;
-  clientId: number;
-  clientName: string;
-  serviceId: number | null;
-  serviceName: string | null;
-  ownerHistoryId: number | null;
-  dateFrom: string;
-  dateTo: string | null;
-  storageDays: number;
-  status: "ACTIVE" | "CLOSED" | "CANCELLED";
-  sourceType: "RECEIVING_ORDER" | "OWNER_CHANGE_ORDER" | "SYSTEM";
-  sourceId: number | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type ContainerStorageDailyAccrual = {
-  id: number;
-  storagePeriodId: number;
-  containerId: number;
-  containerNumber: string;
-  clientId: number;
-  clientName: string;
-  accrualDate: string;
-  serviceId: number | null;
-  serviceName: string | null;
-  quantity: number;
-  source: "SYSTEM";
-  status: "ACCRUED" | "CANCELLED";
-  createdAt: string;
-  updatedAt: string;
-};
-
-type ServiceExecutionType = "ONE_TIME" | "CONTINUOUS";
-type ServiceExecutionStatus = "DRAFT" | "IN_PROGRESS" | "CONFIRMED" | "CANCELLED" | "ERROR";
-type ServiceExecutionSourceType = "TOS" | "SYSTEM" | "MANUAL";
-type ServiceExecutionBasisType =
-  | "TOS_OPERATION_FACT"
-  | "STORAGE_DAILY_ACCRUAL"
-  | "CONTAINER_STORAGE_PERIOD"
-  | "RECEIVING_ORDER"
-  | "SHIPPING_ORDER"
-  | "OWNER_CHANGE_ORDER"
-  | "SERVICE_REQUEST"
-  | "SYSTEM";
-type ServiceExecutionFactSourceType = "TOS_OPERATION_FACT" | "STORAGE_DAILY_ACCRUAL" | "STORAGE_PERIOD" | "SERVICE_REQUEST" | "SYSTEM";
-
-type ServiceExecutionSource = {
-  id: number;
-  sourceType: ServiceExecutionFactSourceType;
-  sourceId: number;
-  createdAt: string;
-  tosOperationFact: TosOperationFact | null;
-  storageDailyAccrual: ContainerStorageDailyAccrual | null;
-};
-
-type ServiceExecution = {
-  id: number;
-  clientId: number;
-  clientName: string;
-  containerId: number;
-  containerNumber: string;
-  serviceId: number;
-  serviceName: string;
-  executionType: ServiceExecutionType;
-  dateFrom: string;
-  dateTo: string | null;
-  quantity: number;
-  unit: string;
-  sourceType: ServiceExecutionSourceType;
-  basisType: ServiceExecutionBasisType;
-  basisId: number | null;
-  status: ServiceExecutionStatus;
-  errorMessage: string | null;
-  createdAt: string;
-  updatedAt: string;
-  sources: ServiceExecutionSource[] | null;
-};
-
-type BillingPeriodStatus = "DRAFT" | "CALCULATED" | "CLOSED" | "CANCELLED";
-type BillingAccrualStatus = "CALCULATED" | "CANCELLED";
-
-type BillingPeriod = {
-  id: number;
-  name: string;
-  dateFrom: string;
-  dateTo: string;
-  clientId: number | null;
-  clientName: string | null;
-  status: BillingPeriodStatus;
-  createdAt: string;
-  updatedAt: string;
-  accruals: BillingAccrual[] | null;
-};
-
-type BillingAccrualSource = {
-  id: number;
-  serviceExecutionId: number;
-  createdAt: string;
-  serviceExecution: ServiceExecution;
-};
-
-type BillingAccrual = {
-  id: number;
-  billingPeriodId: number;
-  billingPeriodName: string;
-  clientId: number;
-  clientName: string;
-  serviceId: number | null;
-  serviceName: string | null;
-  tariffId: number | null;
-  tariffName: string | null;
-  quantity: number;
-  unit: string;
-  unitPrice: number;
-  amount: number;
-  status: BillingAccrualStatus;
-  createdAt: string;
-  updatedAt: string;
-  sources: BillingAccrualSource[] | null;
-};
-
-type ComplexServiceFormItem = {
-  serviceId: string;
-  operationCount: string;
-  durationDays: string;
-};
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 function App() {
   const [page, setPage] = React.useState<Page>("receiving-list");
@@ -360,7 +118,6 @@ function App() {
   const [complexServices, setComplexServices] = React.useState<ComplexService[]>([]);
   const [tosOperationFacts, setTosOperationFacts] = React.useState<TosOperationFact[]>([]);
   const [storagePeriods, setStoragePeriods] = React.useState<ContainerStoragePeriod[]>([]);
-  const [storageAccruals, setStorageAccruals] = React.useState<ContainerStorageDailyAccrual[]>([]);
   const [serviceExecutions, setServiceExecutions] = React.useState<ServiceExecution[]>([]);
   const [billingPeriods, setBillingPeriods] = React.useState<BillingPeriod[]>([]);
   const [billingAccruals, setBillingAccruals] = React.useState<BillingAccrual[]>([]);
@@ -445,7 +202,6 @@ function App() {
         complexServicesResponse,
         tosFactsResponse,
         storagePeriodsResponse,
-        storageAccrualsResponse,
         serviceExecutionsResponse,
         billingPeriodsResponse,
         billingAccrualsResponse,
@@ -462,7 +218,6 @@ function App() {
         fetch(`${API_BASE}/complex-services`),
         fetch(`${API_BASE}/tos-operation-facts`),
         fetch(`${API_BASE}/storage-periods`),
-        fetch(`${API_BASE}/storage-accruals`),
         fetch(`${API_BASE}/service-executions`),
         fetch(`${API_BASE}/billing-periods`),
         fetch(`${API_BASE}/billing-accruals`),
@@ -481,7 +236,6 @@ function App() {
         !complexServicesResponse.ok ||
         !tosFactsResponse.ok ||
         !storagePeriodsResponse.ok ||
-        !storageAccrualsResponse.ok ||
         !serviceExecutionsResponse.ok ||
         !billingPeriodsResponse.ok ||
         !billingAccrualsResponse.ok
@@ -501,7 +255,6 @@ function App() {
       setComplexServices(await complexServicesResponse.json());
       setTosOperationFacts(await tosFactsResponse.json());
       setStoragePeriods(await storagePeriodsResponse.json());
-      setStorageAccruals(await storageAccrualsResponse.json());
       setServiceExecutions(await serviceExecutionsResponse.json());
       setBillingPeriods(await billingPeriodsResponse.json());
       setBillingAccruals(await billingAccrualsResponse.json());
@@ -600,7 +353,6 @@ function App() {
     }
 
     const updatedOrder: ReceivingOrder = await response.json();
-    await accrueStorageForDate(billingDate, false);
     await loadData();
     setSelectedTosOrderId(updatedOrder.id);
     setPage("tos-receiving-details");
@@ -644,42 +396,6 @@ function App() {
     await loadData();
     setSelectedTosShippingOrderId(updatedOrder.id);
     setPage("tos-shipping-details");
-  }
-
-  async function accrueStorageForDate(date: string, shouldReload = true) {
-    setError(null);
-
-    const response = await fetch(`${API_BASE}/storage-accruals/accrue`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date }),
-    });
-
-    if (!response.ok) {
-      setError(await errorText(response, "Не удалось начислить день хранения"));
-      return;
-    }
-
-    if (shouldReload) {
-      await loadData();
-    }
-  }
-
-  async function rollbackStorageAfterDate(date: string) {
-    setError(null);
-
-    const response = await fetch(`${API_BASE}/storage-accruals/rollback-after`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date }),
-    });
-
-    if (!response.ok) {
-      setError(await errorText(response, "Не удалось откатить начисления хранения"));
-      return;
-    }
-
-    await loadData();
   }
 
   async function openServiceExecution(execution: ServiceExecution) {
@@ -803,26 +519,7 @@ function App() {
   }
 
   async function changeBillingDate(date: string) {
-    const previousDate = billingDate;
     setBillingDate(date);
-    if (!date) {
-      return;
-    }
-
-    const datesToAccrue = datesBetweenExclusiveStart(previousDate, date);
-    if (isDateBefore(date, previousDate)) {
-      await rollbackStorageAfterDate(date);
-      return;
-    }
-
-    if (datesToAccrue.length === 0) {
-      return;
-    }
-
-    for (const accrualDate of datesToAccrue) {
-      await accrueStorageForDate(accrualDate, false);
-    }
-    await loadData();
   }
 
   async function createOwnerChangeOrder(event: React.FormEvent<HTMLFormElement>) {
@@ -867,14 +564,6 @@ function App() {
     }
 
     const createdOrder: OwnerChangeOrder = await response.json();
-    if (ownerRequestType === "OWNER_CHANGE") {
-      await rollbackStorageAfterDate(billingDate);
-      if (!isDateBefore(billingDate, ownerServiceDate)) {
-        for (const accrualDate of datesBetweenInclusive(ownerServiceDate, billingDate)) {
-          await accrueStorageForDate(accrualDate, false);
-        }
-      }
-    }
     setOwnerRequestType("OWNER_CHANGE");
     setOwnerServiceId("");
     setOwnerServiceDate(todayLocalDate());
@@ -1474,8 +1163,7 @@ function App() {
             <summary
               className={
                 page.startsWith("billing") ||
-                page === "storage-periods" ||
-                page === "storage-accruals" ||
+                page === "storage-periods"  ||
                 page === "tos-facts" ||
                 page.startsWith("service-execution")
                   ? "active"
@@ -1501,10 +1189,6 @@ function App() {
               <button className={page === "storage-periods" ? "active" : ""} type="button" onClick={() => setPage("storage-periods")}>
                 <Box size={18} />
                 <span>Хранение КТК</span>
-              </button>
-              <button className={page === "storage-accruals" ? "active" : ""} type="button" onClick={() => setPage("storage-accruals")}>
-                <CalendarDays size={18} />
-                <span>Начисления хранения</span>
               </button>
               <button className={page === "tos-facts" ? "active" : ""} type="button" onClick={() => setPage("tos-facts")}>
                 <Database size={18} />
@@ -1710,14 +1394,7 @@ function App() {
         )}
 
         {page === "storage-periods" && (
-          <ContainerStoragePeriodsPage periods={storagePeriods} isLoading={isLoading} />
-        )}
-
-        {page === "storage-accruals" && (
-          <ContainerStorageAccrualsPage
-            accruals={storageAccruals}
-            isLoading={isLoading}
-          />
+          <ContainerStoragePeriodsPage periods={storagePeriods} billingDate={billingDate} isLoading={isLoading} />
         )}
 
         {page === "service-executions" && (
@@ -2119,9 +1796,11 @@ function TosOperationFactsPage({
 
 function ContainerStoragePeriodsPage({
   periods,
+  billingDate,
   isLoading,
 }: {
   periods: ContainerStoragePeriod[];
+  billingDate: string;
   isLoading: boolean;
 }) {
   return (
@@ -2138,45 +1817,12 @@ function ContainerStoragePeriodsPage({
                 <td>{period.serviceName || "-"}</td>
                 <td>{formatDate(period.dateFrom)}</td>
                 <td>{period.dateTo ? formatDate(period.dateTo) : "-"}</td>
-                <td>{period.storageDays}</td>
+                <td>{storageDaysForPeriod(period, billingDate)}</td>
                 <td>{storageSourceTypeLabel(period.sourceType)}</td>
                 <td>{storagePeriodStatusLabel(period.status)}</td>
               </tr>
             ))}
             {periods.length === 0 && <EmptyRow colSpan={8} text={isLoading ? "Загрузка..." : "Периодов хранения пока нет"} />}
-          </OrdersTable>
-        </PageCard>
-      </div>
-    </>
-  );
-}
-
-function ContainerStorageAccrualsPage({
-  accruals,
-  isLoading,
-}: {
-  accruals: ContainerStorageDailyAccrual[];
-  isLoading: boolean;
-}) {
-  return (
-    <>
-      <PageHead title="Журнал начисления хранения" />
-
-      <div className="uikit-table-card">
-        <PageCard>
-          <OrdersTable columns={["Дата", "КТК", "Клиент", "Услуга", "Кол-во", "Источник", "Статус"]}>
-            {accruals.map((accrual) => (
-              <tr key={accrual.id}>
-                <td>{formatDate(accrual.accrualDate)}</td>
-                <td>{accrual.containerNumber}</td>
-                <td>{accrual.clientName}</td>
-                <td>{accrual.serviceName || "-"}</td>
-                <td>{accrual.quantity}</td>
-                <td>{accrual.source}</td>
-                <td>{storageAccrualStatusLabel(accrual.status)}</td>
-              </tr>
-            ))}
-            {accruals.length === 0 && <EmptyRow colSpan={7} text={isLoading ? "Загрузка..." : "Начислений пока нет"} />}
           </OrdersTable>
         </PageCard>
       </div>
@@ -3802,781 +3448,6 @@ function OwnerChangeOrderDetailsPage({
       </section>
     </>
   );
-}
-
-function PageHead({ title, children }: { title: string; children?: React.ReactNode }) {
-  return (
-    <div className="page-head">
-      <h1>{title}</h1>
-      {children}
-    </div>
-  );
-}
-
-function OrdersTable({ columns, children }: { columns: string[]; children: React.ReactNode }) {
-  return (
-    <section className="table-section">
-      <div className="table-wrap">
-        <table className="orders-table">
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th key={column}>
-                  {column}
-                  <ChevronDown size={14} />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>{children}</tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
-  return (
-    <tr>
-      <td className="empty-cell" colSpan={colSpan}>
-        {text}
-      </td>
-    </tr>
-  );
-}
-
-function StatusBadge({ status }: { status: ReceivingOrderStatus }) {
-  return <span className={`status-badge status-badge-${status.toLowerCase()}`}>{receivingOrderStatusLabel(status)}</span>;
-}
-
-function TosStatusBadge({ order }: { order: ReceivingOrder }) {
-  return (
-    <span className={`status-badge status-badge-${order.status.toLowerCase()}`}>{tosOrderStatusLabel(order)}</span>
-  );
-}
-
-function ShippingStatusBadge({ status }: { status: ShippingOrderStatus }) {
-  return <span className={`status-badge status-badge-${status.toLowerCase()}`}>{shippingOrderStatusLabel(status)}</span>;
-}
-
-function ClientSelect({
-  label,
-  clients,
-  value,
-  onChange,
-}: {
-  label: string;
-  clients: Client[];
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label>
-      {label}
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="" disabled>
-          Выберите клиента
-        </option>
-        {clients.map((client) => (
-          <option value={client.id} key={client.id}>
-            {client.name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function ContainerDropdown({
-  containers,
-  selectedLabel,
-  isOpen,
-  isSelected,
-  onToggle,
-  onToggleOpen,
-  onClose,
-}: {
-  containers: Container[];
-  selectedLabel: string;
-  isOpen: boolean;
-  isSelected: (container: Container) => boolean;
-  onToggle: (container: Container) => void;
-  onToggleOpen: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <>
-      <div className="field-label">КТК</div>
-      <div className="multi-select">
-        <button className={`multi-select-trigger ${selectedLabel ? "has-value" : ""}`} type="button" onClick={onToggleOpen}>
-          <span>{selectedLabel || " "}</span>
-          <ChevronDown size={16} />
-        </button>
-        {isOpen && (
-          <div className="multi-select-menu">
-            {containers.map((container) => (
-              <label className="multi-select-option" key={container.id}>
-                <input type="checkbox" checked={isSelected(container)} onChange={() => onToggle(container)} />
-                {container.number}
-              </label>
-            ))}
-            {containers.length === 0 && <p className="muted dropdown-empty">В справочнике пока нет КТК</p>}
-            <div className="dropdown-actions">
-              <button type="button" onClick={onClose}>
-                Готово
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-function SubmitButton({ label }: { label: string }) {
-  return (
-    <button className="design-button form-submit" type="submit">
-      {label}
-    </button>
-  );
-}
-
-function BackButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button className="back-button" type="button" onClick={onClick}>
-      <ArrowLeft size={16} />
-      Назад к списку
-    </button>
-  );
-}
-
-function UikitBackButton({ onClick }: { onClick: () => void }) {
-  return (
-    <BaseButton buttonType={ButtonType.outlined} startIcon={<ArrowLeft size={16} />} onClick={onClick}>
-      Назад к списку
-    </BaseButton>
-  );
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function ContainerChips({ containers }: { containers: Container[] }) {
-  return (
-    <div className="container-list large">
-      {containers.map((container) => (
-        <span className="container-chip" key={container.id}>
-          {container.number}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function NotSelected({ title, onBack }: { title: string; onBack: () => void }) {
-  return (
-    <section className="details-panel">
-      <BackButton onClick={onBack} />
-      <h1>{title}</h1>
-    </section>
-  );
-}
-
-async function errorText(response: Response, fallback: string) {
-  try {
-    const payload = await response.json();
-    return payload.message || payload.error || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatDate(value: string) {
-  if (!value) {
-    return "-";
-  }
-
-  return new Date(`${value}T00:00:00`).toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function datePart(value: string) {
-  return value.includes("T") ? value.slice(0, 10) : value;
-}
-
-function todayLocalDate() {
-  const now = new Date();
-  const offset = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
-}
-
-function datesBetweenExclusiveStart(start: string, end: string) {
-  if (!start || !end) {
-    return [];
-  }
-
-  const startDate = localDateOnly(start);
-  const endDate = localDateOnly(end);
-  if (endDate.getTime() <= startDate.getTime()) {
-    return [];
-  }
-
-  const dates: string[] = [];
-  const currentDate = addDays(startDate, 1);
-  while (currentDate.getTime() <= endDate.getTime()) {
-    dates.push(toLocalDateInputValue(currentDate));
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-  return dates;
-}
-
-function datesBetweenInclusive(start: string, end: string) {
-  if (!start || !end) {
-    return [];
-  }
-
-  const startDate = localDateOnly(start);
-  const endDate = localDateOnly(end);
-  if (endDate.getTime() < startDate.getTime()) {
-    return [];
-  }
-
-  const dates: string[] = [];
-  const currentDate = new Date(startDate);
-  while (currentDate.getTime() <= endDate.getTime()) {
-    dates.push(toLocalDateInputValue(currentDate));
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-  return dates;
-}
-
-function isDateBefore(left: string, right: string) {
-  if (!left || !right) {
-    return false;
-  }
-
-  return localDateOnly(left).getTime() < localDateOnly(right).getTime();
-}
-
-function toLocalDateInputValue(value: Date) {
-  const offset = value.getTimezoneOffset() * 60000;
-  return new Date(value.getTime() - offset).toISOString().slice(0, 10);
-}
-
-function storageDaysForOwner(owner: ContainerOwnerHistory, billingDate: string) {
-  if (!billingDate) {
-    return 0;
-  }
-
-  const start = localDateOnly(owner.validFrom);
-  const billing = localDateOnly(billingDate);
-  const rawEnd = owner.validTo ? addDays(localDateOnly(owner.validTo), -1) : billing;
-  const end = rawEnd.getTime() > billing.getTime() ? billing : rawEnd;
-
-  if (end.getTime() < start.getTime()) {
-    return 0;
-  }
-
-  return daysBetween(start, end) + 1;
-}
-
-function localDateOnly(value: string) {
-  return new Date(`${datePart(value)}T00:00:00`);
-}
-
-function addDays(value: Date, days: number) {
-  const next = new Date(value);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function daysBetween(start: Date, end: Date) {
-  const millisecondsPerDay = 24 * 60 * 60 * 1000;
-  return Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay);
-}
-
-function receivingOrderStatusLabel(status: ReceivingOrderStatus) {
-  switch (status) {
-    case "DRAFT":
-      return "Черновик";
-    case "CONFIRMED":
-      return "Подтверждена";
-    case "COMPLETED":
-      return "Выполнена";
-  }
-}
-
-function tosOrderStatusLabel(order: ReceivingOrder) {
-  if (order.status === "COMPLETED") {
-    return "Выполнена";
-  }
-
-  return "На выполнение";
-}
-
-function receivingOrderContainerStatusLabel(status: ReceivingOrderContainerStatus) {
-  switch (status) {
-    case "IN_PROGRESS":
-      return "На выполнение";
-    case "FINISHED":
-      return "Принят";
-  }
-}
-
-function shippingOrderStatusLabel(status: ShippingOrderStatus) {
-  switch (status) {
-    case "CONFIRMED":
-      return "На выполнение";
-    case "COMPLETED":
-      return "Выполнена";
-  }
-}
-
-function shippingOrderContainerStatusLabel(status: ShippingOrderContainerStatus) {
-  switch (status) {
-    case "IN_PROGRESS":
-      return "На выполнение";
-    case "FINISHED":
-      return "Вывезен";
-  }
-}
-
-function tosFactStatusLabel(status: TosOperationFact["status"]) {
-  switch (status) {
-    case "RECEIVED":
-      return "Получено";
-    case "PROCESSED":
-      return "Обработано";
-    case "ERROR":
-      return "Ошибка";
-    case "CANCELLED":
-      return "Отменено";
-  }
-}
-
-function storagePeriodStatusLabel(status: ContainerStoragePeriod["status"]) {
-  switch (status) {
-    case "ACTIVE":
-      return "Активно";
-    case "CLOSED":
-      return "Закрыто";
-    case "CANCELLED":
-      return "Отменено";
-  }
-}
-
-function storageSourceTypeLabel(sourceType: ContainerStoragePeriod["sourceType"]) {
-  switch (sourceType) {
-    case "RECEIVING_ORDER":
-      return "Поставка";
-    case "OWNER_CHANGE_ORDER":
-      return "Смена владельца";
-    case "SYSTEM":
-      return "Система";
-  }
-}
-
-function storageAccrualStatusLabel(status: ContainerStorageDailyAccrual["status"]) {
-  switch (status) {
-    case "ACCRUED":
-      return "Начислено";
-    case "CANCELLED":
-      return "Отменено";
-  }
-}
-
-function serviceExecutionPeriodLabel(execution: ServiceExecution) {
-  if (!execution.dateTo || execution.dateFrom === execution.dateTo) {
-    return formatDate(execution.dateFrom);
-  }
-
-  return `${formatDate(execution.dateFrom)} - ${formatDate(execution.dateTo)}`;
-}
-
-function serviceExecutionTypeLabel(type: ServiceExecutionType) {
-  switch (type) {
-    case "ONE_TIME":
-      return "Разовая";
-    case "CONTINUOUS":
-      return "Продолжительная";
-  }
-}
-
-function serviceExecutionStatusLabel(status: ServiceExecutionStatus) {
-  switch (status) {
-    case "DRAFT":
-      return "Черновик";
-    case "IN_PROGRESS":
-      return "В процессе";
-    case "CONFIRMED":
-      return "Оказана";
-    case "CANCELLED":
-      return "Отменена";
-    case "ERROR":
-      return "Ошибка";
-  }
-}
-
-function billingPeriodStatusLabel(status: BillingPeriodStatus) {
-  switch (status) {
-    case "DRAFT":
-      return "Черновик";
-    case "CALCULATED":
-      return "Рассчитан";
-    case "CLOSED":
-      return "Закрыт";
-    case "CANCELLED":
-      return "Отменен";
-  }
-}
-
-function billingAccrualStatusLabel(status: BillingAccrualStatus) {
-  switch (status) {
-    case "CALCULATED":
-      return "Рассчитано";
-    case "CANCELLED":
-      return "Отменено";
-  }
-}
-
-function serviceRequestTypeLabel(type: OwnerChangeOrder["requestType"]) {
-  switch (type) {
-    case "OWNER_CHANGE":
-      return "Смена владельца";
-    case "SERVICE":
-      return "Оказание услуги";
-  }
-}
-
-function basisLabel(basisType: ServiceExecutionBasisType, basisId: number | null) {
-  return `${basisType}${basisId == null ? "" : ` #${basisId}`}`;
-}
-
-function serviceExecutionSourceDetails(source: ServiceExecutionSource) {
-  if (source.tosOperationFact) {
-    const fact = source.tosOperationFact;
-    return `${fact.operationCode}, ${formatDateTime(fact.operationTime)}, raw: ${rawPayloadText(fact.rawPayload)}`;
-  }
-
-  if (source.storageDailyAccrual) {
-    const accrual = source.storageDailyAccrual;
-    return `${formatDate(accrual.accrualDate)}, ${accrual.quantity} ${accrual.source}, ${storageAccrualStatusLabel(accrual.status)}`;
-  }
-
-  return "-";
-}
-
-function rawPayloadText(rawPayload: unknown) {
-  if (rawPayload == null) {
-    return "-";
-  }
-
-  if (typeof rawPayload === "string") {
-    return rawPayload;
-  }
-
-  return JSON.stringify(rawPayload);
-}
-
-function storagePeriodForOwnerHistory(
-  history: ContainerOwnerHistory,
-  storagePeriods: ContainerStoragePeriod[],
-) {
-  return storagePeriods.find((period) => period.ownerHistoryId === history.id) ?? null;
-}
-
-function oneTimeComplexServiceItems(order: ReceivingOrder) {
-  return order.complexService?.items.filter((item) => item.service.serviceType === "ONE_TIME") ?? [];
-}
-
-function continuousComplexServiceItems(order: ReceivingOrder) {
-  return order.complexService?.items.filter((item) => item.service.serviceType === "CONTINUOUS") ?? [];
-}
-
-type BillingRow = {
-  key: string;
-  clientId: number;
-  clientName: string;
-  orderId: number;
-  orderNumber: string;
-  containerId: number;
-  containerNumber: string;
-  serviceName: string;
-  serviceType: string;
-  quantity: number;
-  description: string;
-  amount: number;
-};
-
-function billingRows(
-  orders: ReceivingOrder[],
-  shippingOrders: ShippingOrder[],
-  ownerHistory: ContainerOwnerHistory[],
-  containers: Container[],
-  billingDate: string,
-): BillingRow[] {
-  const rows: BillingRow[] = [];
-  void shippingOrders;
-
-  for (const order of orders) {
-    for (const link of order.containers) {
-      for (const execution of link.serviceExecutions) {
-        rows.push({
-          key: `execution-${execution.id}`,
-          clientId: order.client.id,
-          clientName: order.client.name,
-          orderId: order.id,
-          orderNumber: order.number,
-          containerId: link.container.id,
-          containerNumber: link.container.number,
-          serviceName: execution.service.name,
-          serviceType: serviceTypeLabel(execution.service.serviceType),
-          quantity: execution.quantity,
-          description: `${execution.quantity} оп. × ${formatMoney(execution.service.cost)} × ${order.complexService?.coefficient ?? 1}`,
-          amount: execution.amount,
-        });
-      }
-
-    }
-  }
-
-  for (const owner of ownerHistory) {
-    const storageDays = storageDaysForOwner(owner, billingDate);
-    if (storageDays === 0) {
-      continue;
-    }
-
-    const container = containers.find((currentContainer) => currentContainer.id === owner.containerId);
-    const sourceOrder = latestReceivingOrderForContainer(orders, owner.containerId);
-    if (!container) {
-      continue;
-    }
-    if (!sourceOrder) {
-      continue;
-    }
-
-    for (const item of continuousComplexServiceItems(sourceOrder)) {
-      const graceDays = Math.min(storageDays, item.durationDays ?? 0);
-      const fullPriceDays = Math.max(storageDays - (item.durationDays ?? 0), 0);
-      const coefficient = owner.operationType === "RECEIVING" ? sourceOrder.complexService?.coefficient ?? 1 : 1;
-      const amount =
-        owner.operationType === "RECEIVING"
-          ? graceDays * item.service.cost * coefficient + fullPriceDays * item.service.cost
-          : storageDays * item.service.cost;
-      const description =
-        owner.operationType === "RECEIVING"
-          ? `${graceDays} льготн. дн. × ${formatMoney(item.service.cost)} × ${coefficient} + ${fullPriceDays} дн. × ${formatMoney(item.service.cost)}`
-          : `${storageDays} дн. × ${formatMoney(item.service.cost)}`;
-
-      rows.push({
-        key: `storage-${owner.containerId}-${item.service.id}-${owner.validFrom}-${storageDays}`,
-        clientId: owner.client.id,
-        clientName: owner.client.name,
-        orderId: sourceOrder.id,
-        orderNumber: sourceOrder.number,
-        containerId: owner.containerId,
-        containerNumber: container.number,
-        serviceName: item.service.name,
-        serviceType: serviceTypeLabel(item.service.serviceType),
-        quantity: storageDays,
-        description,
-        amount,
-      });
-    }
-  }
-
-  return rows;
-}
-
-function latestReceivingOrderForContainer(orders: ReceivingOrder[], containerId: number) {
-  return orders
-    .filter((order) => order.containers.some((link) => link.container.id === containerId))
-    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
-}
-
-type BillingClientSummary = {
-  clientId: number;
-  clientName: string;
-  orderCount: number;
-  serviceCount: number;
-  amount: number;
-};
-
-function billingClientSummaries(orders: ReceivingOrder[], rows: BillingRow[]): BillingClientSummary[] {
-  const summaries = new Map<number, BillingClientSummary>();
-
-  for (const row of rows) {
-    const summary =
-      summaries.get(row.clientId) ??
-      {
-        clientId: row.clientId,
-        clientName: row.clientName,
-        orderCount: 0,
-        serviceCount: 0,
-        amount: 0,
-      };
-    summary.amount += row.amount;
-    summaries.set(row.clientId, summary);
-  }
-
-  for (const summary of summaries.values()) {
-    const clientOrders = orders.filter((order) => order.client.id === summary.clientId);
-    summary.orderCount = clientOrders.length;
-    summary.serviceCount = rows
-      .filter((row) => row.clientId === summary.clientId)
-      .reduce((count, row) => count + row.quantity, 0);
-  }
-
-  return [...summaries.values()].sort((left, right) => left.clientName.localeCompare(right.clientName, "ru"));
-}
-
-type BillingOrderSummary = {
-  orderId: number;
-  orderNumber: string;
-  complexServiceName: string;
-  status: ReceivingOrderStatus;
-  serviceCount: number;
-  amount: number;
-};
-
-type BillingServiceSummary = {
-  serviceName: string;
-  serviceType: string;
-  quantity: number;
-  amount: number;
-};
-
-function billingServiceSummaries(rows: BillingRow[]): BillingServiceSummary[] {
-  const summaries = new Map<string, BillingServiceSummary>();
-
-  for (const row of rows) {
-    const key = `${row.serviceName}-${row.serviceType}`;
-    const summary =
-      summaries.get(key) ??
-      {
-        serviceName: row.serviceName,
-        serviceType: row.serviceType,
-        quantity: 0,
-        amount: 0,
-      };
-    summary.quantity += row.quantity;
-    summary.amount += row.amount;
-    summaries.set(key, summary);
-  }
-
-  return [...summaries.values()].sort((left, right) => left.serviceName.localeCompare(right.serviceName, "ru"));
-}
-
-function billingOrderSummaries(orders: ReceivingOrder[], rows: BillingRow[]): BillingOrderSummary[] {
-  return orders
-    .map((order) => ({
-      orderId: order.id,
-      orderNumber: order.number,
-      complexServiceName: order.complexService?.name ?? "-",
-      status: order.status,
-      serviceCount: rows
-        .filter((row) => row.orderId === order.id)
-        .reduce((count, row) => count + row.quantity, 0),
-      amount: rows
-        .filter((row) => row.orderId === order.id)
-        .reduce((sum, row) => sum + row.amount, 0),
-    }))
-    .filter((order) => order.amount > 0)
-    .sort((left, right) => right.orderNumber.localeCompare(left.orderNumber, "ru", { numeric: true }));
-}
-
-function operationLabel(operationType: ContainerOwnerHistory["operationType"]) {
-  switch (operationType) {
-    case "RECEIVING":
-      return "Поставка";
-    case "SHIPPING":
-      return "Вывоз";
-    case "OWNER_CHANGE":
-      return "Смена владельца";
-  }
-}
-
-function serviceTypeLabel(serviceType: BillingServiceType) {
-  switch (serviceType) {
-    case "ONE_TIME":
-      return "Единоразовая";
-    case "CONTINUOUS":
-      return "Продолжительная";
-  }
-}
-
-function complexServiceItemValue(item: ComplexServiceItem) {
-  if (item.service.serviceType === "ONE_TIME") {
-    return `${item.operationCount ?? 0} оп.`;
-  }
-
-  return `${item.durationDays ?? 0} дн.`;
-}
-
-function calculateComplexServiceAmount(
-  services: BillingService[],
-  items: ComplexServiceFormItem[],
-  coefficientValue: string,
-) {
-  const coefficient = Number(coefficientValue.replace(",", "."));
-  const normalizedCoefficient = Number.isFinite(coefficient) && coefficient >= 0 ? coefficient : 0;
-
-  const servicesAmount = items.reduce((total, item) => {
-    const service = services.find((currentService) => currentService.id === Number(item.serviceId));
-    if (!service) {
-      return total;
-    }
-
-    const quantityValue = service.serviceType === "ONE_TIME" ? item.operationCount : item.durationDays;
-    const quantity = Number(quantityValue);
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      return total;
-    }
-
-    return total + service.cost * quantity;
-  }, 0);
-
-  return servicesAmount * normalizedCoefficient;
-}
-
-function formatCoefficient(value: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  }).format(value);
-}
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatQuantity(value: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 3,
-  }).format(value);
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

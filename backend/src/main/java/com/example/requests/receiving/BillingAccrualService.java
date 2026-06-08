@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class BillingAccrualService {
@@ -23,7 +25,7 @@ public class BillingAccrualService {
     private final BillingAccrualSourceRepository sourceRepository;
     private final ServiceExecutionRepository serviceExecutionRepository;
     private final TariffRepository tariffRepository;
-    private final ContainerStorageDailyAccrualRepository storageAccrualRepository;
+    private final ContainerStoragePeriodRepository storagePeriodRepository;
     private final ReceivingOrderContainerRepository receivingOrderContainerRepository;
     private final TosOperationFactRepository tosOperationFactRepository;
 
@@ -33,7 +35,7 @@ public class BillingAccrualService {
         BillingAccrualSourceRepository sourceRepository,
         ServiceExecutionRepository serviceExecutionRepository,
         TariffRepository tariffRepository,
-        ContainerStorageDailyAccrualRepository storageAccrualRepository,
+        ContainerStoragePeriodRepository storagePeriodRepository,
         ReceivingOrderContainerRepository receivingOrderContainerRepository,
         TosOperationFactRepository tosOperationFactRepository
     ) {
@@ -42,7 +44,7 @@ public class BillingAccrualService {
         this.sourceRepository = sourceRepository;
         this.serviceExecutionRepository = serviceExecutionRepository;
         this.tariffRepository = tariffRepository;
-        this.storageAccrualRepository = storageAccrualRepository;
+        this.storagePeriodRepository = storagePeriodRepository;
         this.receivingOrderContainerRepository = receivingOrderContainerRepository;
         this.tosOperationFactRepository = tosOperationFactRepository;
     }
@@ -66,7 +68,7 @@ public class BillingAccrualService {
         }
 
         List<ServiceExecution> executions = serviceExecutionRepository
-            .findByStatusAndDateFromBetweenOrderByDateFromAscIdAsc(
+            .findByStatusAndDateRangeOverlapOrderByDateFromAscIdAsc(
                 ServiceExecutionStatus.CONFIRMED,
                 period.getDateFrom(),
                 period.getDateTo()
@@ -77,7 +79,7 @@ public class BillingAccrualService {
             .toList();
 
         List<BillableExecution> billableExecutions = executions.stream()
-            .map(this::resolveBillableExecution)
+            .map(execution -> resolveBillableExecution(execution, period))
             .flatMap(List::stream)
             .toList();
 
@@ -120,19 +122,21 @@ public class BillingAccrualService {
             ));
 
         BigDecimal amount = BigDecimal.ZERO;
+        BigDecimal quantityTotal = BigDecimal.ZERO;
         for (BillableExecution billableExecution : billableExecutions) {
             Tariff tariff = tariffsByServiceId.get(billableExecution.service().getId());
             BigDecimal unitPrice = tariff.getCost()
                 .multiply(billableExecution.coefficient())
                 .setScale(2, RoundingMode.HALF_UP);
-            BigDecimal quantity = BigDecimal.valueOf(billableExecution.execution().getQuantity());
+            BigDecimal quantity = billableExecution.quantity();
+            quantityTotal = quantityTotal.add(quantity);
             amount = amount.add(quantity.multiply(unitPrice));
         }
 
         BillingAccrual accrual = new BillingAccrual();
         accrual.setBillingPeriod(period);
         accrual.setClient(period.getClient());
-        accrual.setQuantity(BigDecimal.valueOf(uniqueExecutions.size()));
+        accrual.setQuantity(quantityTotal);
         accrual.setUnit("услуг");
         accrual.setUnitPrice(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         accrual.setAmount(amount.setScale(2, RoundingMode.HALF_UP));
@@ -151,24 +155,30 @@ public class BillingAccrualService {
         return periodRepository.save(period);
     }
 
-    private List<BillableExecution> resolveBillableExecution(ServiceExecution execution) {
+    private List<BillableExecution> resolveBillableExecution(ServiceExecution execution, BillingPeriod period) {
         if (isService(execution.getService(), OWNER_CHANGE_SERVICE_NAME)) {
             return List.of();
         }
 
-        BigDecimal coefficient = execution.getBasisType() == ServiceExecutionBasisType.STORAGE_DAILY_ACCRUAL
+        BigDecimal quantity = execution.getBasisType() == ServiceExecutionBasisType.STORAGE_PERIOD
+            ? storageQuantityForBillingPeriod(execution, period)
+            : BigDecimal.valueOf(execution.getQuantity());
+        if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            return List.of();
+        }
+
+        BigDecimal coefficient = execution.getBasisType() == ServiceExecutionBasisType.STORAGE_PERIOD
             ? storageCoefficient(execution)
             : tosCoefficient(execution);
-        return List.of(new BillableExecution(execution, execution.getService(), coefficient));
+        return List.of(new BillableExecution(execution, execution.getService(), coefficient, quantity));
     }
 
     private BigDecimal storageCoefficient(ServiceExecution execution) {
-        if (execution.getBasisType() != ServiceExecutionBasisType.STORAGE_DAILY_ACCRUAL || execution.getBasisId() == null) {
+        if (execution.getBasisType() != ServiceExecutionBasisType.STORAGE_PERIOD || execution.getBasisId() == null) {
             return BigDecimal.ONE;
         }
 
-        return storageAccrualRepository.findWithStoragePeriodById(execution.getBasisId())
-            .map(ContainerStorageDailyAccrual::getStoragePeriod)
+        return storagePeriodRepository.findById(execution.getBasisId())
             .filter(period -> period.getSourceType() == ContainerStorageSourceType.RECEIVING_ORDER)
             .map(ContainerStoragePeriod::getSourceId)
             .flatMap(receivingOrderContainerRepository::findWithReceivingOrderById)
@@ -176,6 +186,23 @@ public class BillingAccrualService {
             .map(ReceivingOrder::getComplexService)
             .map(ComplexService::getCoefficient)
             .orElse(BigDecimal.ONE);
+    }
+
+    private BigDecimal storageQuantityForBillingPeriod(ServiceExecution execution, BillingPeriod period) {
+        LocalDate start = execution.getDateFrom().isAfter(period.getDateFrom())
+            ? execution.getDateFrom()
+            : period.getDateFrom();
+        LocalDate executionEndInclusive = execution.getDateTo() == null
+            ? period.getDateTo()
+            : execution.getDateTo().minusDays(1);
+        LocalDate end = executionEndInclusive.isBefore(period.getDateTo())
+            ? executionEndInclusive
+            : period.getDateTo();
+
+        if (end.isBefore(start)) {
+            return BigDecimal.ZERO;
+        }
+        return BigDecimal.valueOf(ChronoUnit.DAYS.between(start, end.plusDays(1)));
     }
 
     private BigDecimal tosCoefficient(ServiceExecution execution) {
@@ -199,7 +226,8 @@ public class BillingAccrualService {
     private record BillableExecution(
         ServiceExecution execution,
         BillingService service,
-        BigDecimal coefficient
+        BigDecimal coefficient,
+        BigDecimal quantity
     ) {
     }
 }

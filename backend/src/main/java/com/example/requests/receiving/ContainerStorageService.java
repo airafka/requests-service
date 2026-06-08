@@ -6,25 +6,22 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
-import java.util.List;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class ContainerStorageService {
     private static final String STORAGE_SERVICE_NAME = "\u0423\u0447\u0435\u0442 \u0438 \u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f";
 
     private final ContainerStoragePeriodRepository periodRepository;
-    private final ContainerStorageDailyAccrualRepository accrualRepository;
     private final BillingServiceRepository billingServiceRepository;
     private final ServiceExecutionService serviceExecutionService;
 
     public ContainerStorageService(
         ContainerStoragePeriodRepository periodRepository,
-        ContainerStorageDailyAccrualRepository accrualRepository,
         BillingServiceRepository billingServiceRepository,
         ServiceExecutionService serviceExecutionService
     ) {
         this.periodRepository = periodRepository;
-        this.accrualRepository = accrualRepository;
         this.billingServiceRepository = billingServiceRepository;
         this.serviceExecutionService = serviceExecutionService;
     }
@@ -75,7 +72,9 @@ public class ContainerStorageService {
                 newPeriod.setSourceType(sourceType);
                 newPeriod.setSourceId(sourceId);
                 newPeriod.setOwnerHistory(ownerHistory);
-                return periodRepository.save(newPeriod);
+                ContainerStoragePeriod saved = periodRepository.saveAndFlush(newPeriod);
+                serviceExecutionService.createOrUpdateForStoragePeriod(saved, dateFrom);
+                return saved;
             });
     }
 
@@ -85,8 +84,10 @@ public class ContainerStorageService {
             .findByContainerIdAndStatus(container.getId(), ContainerStoragePeriodStatus.ACTIVE)
             .ifPresent(period -> {
                 period.setDateTo(dateTo);
+                period.setStorageDays(storageDays(period.getDateFrom(), dateTo));
                 period.setStatus(ContainerStoragePeriodStatus.CLOSED);
-                periodRepository.save(period);
+                ContainerStoragePeriod saved = periodRepository.save(period);
+                serviceExecutionService.createOrUpdateForStoragePeriod(saved, dateTo);
             });
     }
 
@@ -95,81 +96,24 @@ public class ContainerStorageService {
         periodRepository
             .findByContainerIdAndStatus(container.getId(), ContainerStoragePeriodStatus.ACTIVE)
             .ifPresent(period -> {
-                rollbackPeriodAccrualsOnOrAfter(period, changeDate);
                 period.setDateTo(changeDate);
+                period.setStorageDays(storageDays(period.getDateFrom(), changeDate));
                 period.setStatus(ContainerStoragePeriodStatus.CLOSED);
-                periodRepository.save(period);
+                ContainerStoragePeriod saved = periodRepository.save(period);
+                serviceExecutionService.createOrUpdateForStoragePeriod(saved, changeDate);
             });
     }
 
     @Transactional
-    public List<ContainerStorageDailyAccrual> accrueStorageDay(LocalDate date) {
-        BillingService service = storageService();
-        List<ContainerStoragePeriod> activePeriods = periodRepository.findAccruableForDate(date);
-
-        return activePeriods.stream()
-            .filter(period -> !accrualRepository.existsByStoragePeriodIdAndAccrualDate(period.getId(), date))
-            .map(period -> createAccrual(period, service, date))
-            .toList();
-    }
-
-    @Transactional
-    public void rollbackStorageAfter(LocalDate date) {
-        List<ContainerStorageDailyAccrual> accruals = accrualRepository
-            .findByStatusAndAccrualDateAfterOrderByAccrualDateDescIdDesc(
-                ContainerStorageDailyAccrualStatus.ACCRUED,
-                date
-            );
-
-        for (ContainerStorageDailyAccrual accrual : accruals) {
-            ContainerStoragePeriod period = accrual.getStoragePeriod();
-            period.setStorageDays(Math.max(period.getStorageDays() - accrual.getQuantity(), 0));
-            periodRepository.save(period);
-            serviceExecutionService.cancelForStorageAccrual(accrual);
-            accrualRepository.delete(accrual);
-        }
-    }
-
-    private ContainerStorageDailyAccrual createAccrual(
-        ContainerStoragePeriod period,
-        BillingService service,
-        LocalDate date
-    ) {
-        ContainerStorageDailyAccrual accrual = new ContainerStorageDailyAccrual();
-        accrual.setStoragePeriod(period);
-        accrual.setContainer(period.getContainer());
-        accrual.setContainerNumber(period.getContainerNumber());
-        accrual.setClient(period.getClient());
-        accrual.setAccrualDate(date);
-        accrual.setService(service);
-        accrual.setQuantity(1);
-        accrual.setSource(ContainerStorageDailyAccrualSource.SYSTEM);
-        accrual.setStatus(ContainerStorageDailyAccrualStatus.ACCRUED);
-
-        period.setStorageDays(period.getStorageDays() + 1);
-        periodRepository.save(period);
-        ContainerStorageDailyAccrual saved = accrualRepository.saveAndFlush(accrual);
-        serviceExecutionService.createForStorageAccrual(saved);
-        return saved;
-    }
-
-    private void rollbackPeriodAccrualsOnOrAfter(ContainerStoragePeriod period, LocalDate date) {
-        List<ContainerStorageDailyAccrual> accruals = accrualRepository
-            .findByStoragePeriodIdAndStatusAndAccrualDateGreaterThanEqualOrderByAccrualDateDescIdDesc(
-                period.getId(),
-                ContainerStorageDailyAccrualStatus.ACCRUED,
-                date
-            );
-
-        for (ContainerStorageDailyAccrual accrual : accruals) {
-            period.setStorageDays(Math.max(period.getStorageDays() - accrual.getQuantity(), 0));
-            serviceExecutionService.cancelForStorageAccrual(accrual);
-            accrualRepository.delete(accrual);
-        }
-    }
-
     private BillingService storageService() {
         return billingServiceRepository.findByNameIgnoreCase(STORAGE_SERVICE_NAME)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Storage service was not found"));
+    }
+
+    private int storageDays(LocalDate dateFrom, LocalDate dateToExclusive) {
+        if (dateFrom == null || dateToExclusive == null || !dateToExclusive.isAfter(dateFrom)) {
+            return 0;
+        }
+        return Math.toIntExact(ChronoUnit.DAYS.between(dateFrom, dateToExclusive));
     }
 }
